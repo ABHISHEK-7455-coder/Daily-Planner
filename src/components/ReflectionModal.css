@@ -1,0 +1,68 @@
+.reflection-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.reflection-modal {
+    background: #fff;
+    width: 400px;
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.field {
+    margin-bottom: 16px;
+}
+
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.mood-row button {
+    font-size: 22px;
+    margin-right: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f9fafb;
+    cursor: pointer;
+}
+
+.mood-row .active {
+    background: #c4eff7;
+    color: white;
+}
+
+textarea {
+    width: 100%;
+    height: 80px;
+    padding: 8px;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.save {
+    background: rgb(0, 76, 255);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+}
+
+.cancel {
+    background: #e5e7eb;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+}

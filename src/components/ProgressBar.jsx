@@ -3,19 +3,19 @@ import "./ProgressBar.css";
 
 const QUOTES = {
     low: [
-        "It’s okay to start small ",
+        "It's okay to start small ",
         "No rush, just begin",
         "One step is enough today"
     ],
     mid: [
         "Nice momentum ",
-        "You’re doing well, keep going",
+        "You're doing well, keep going",
         "Progress looks good today"
     ],
     high: [
         "Amazing work today ",
         "You crushed your tasks ",
-        "That’s a productive day!"
+        "That's a productive day!"
     ]
 };
 
@@ -35,37 +35,28 @@ export default function ProgressBar({ total, completed }) {
     }, [percentage]);
 
     return (
-        <div style={{ marginBottom: 20 }}>
-            <p className="progress-title">
-                {completed} of {total} tasks completed
-            </p>
+        <div className="progress-container">
+            <div className="progress-header">
+                <div className="progress-info">
+                    <h3 className="progress-title">Daily Goal</h3>
+                    <p className="progress-subtitle">
+                        {completed} of {total} tasks completed
+                    </p>
+                </div>
+                <div className="progress-percentage">{percentage}%</div>
+            </div>
+
+            <div className="progress-bar-wrapper">
+                <div className="progress-bar-track">
+                    <div
+                        className="progress-bar-fill"
+                        style={{ width: `${percentage}%` }}
+                    />
+                </div>
+            </div>
 
             {/* 🔥 SMART MOTIVATIONAL QUOTE */}
-            <p className="progress-quote">{quote}</p>
-
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Progress</span>
-                <p>{percentage}%</p>
-            </div>
-
-            <div
-                style={{
-                    height: 8,
-                    background: "#e5e7eb",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    marginTop: 6
-                }}
-            >
-                <div
-                    style={{
-                        width: `${percentage}%`,
-                        height: "100%",
-                        background: "#22c55e",
-                        transition: "width 0.3s ease"
-                    }}
-                />
-            </div>
+            <p className="progress-quote">"{quote}"</p>
         </div>
     );
 }

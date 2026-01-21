@@ -1,0 +1,23 @@
+.task-section {
+    margin-bottom: 32px;
+}
+
+.task-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 16px 0;
+}
+
+.task-section-icon {
+    font-size: 18px;
+}
+
+.task-section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

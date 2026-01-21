@@ -1,18 +1,116 @@
 .task-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 6px;
-  cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .task-item:hover {
-  background: #f9fafb;
+    border-color: #d1d5db;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-button {
-  background: none;
-  border: 1px solid lightgray;
+.task-item-completed {
+    opacity: 0.6;
+}
+
+.task-item-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.task-item-checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    appearance: none;
+    position: relative;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.task-item-checkbox:checked {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.task-item-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.task-item-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.task-item-title {
+    font-size: 15px;
+    color: #1a1a1a;
+    cursor: pointer;
+}
+
+.task-item-completed .task-item-title {
+    text-decoration: line-through;
+    color: #9ca3af;
+}
+
+.task-item-time {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.task-item-edit-input {
+    flex: 1;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 15px;
+    outline: none;
+}
+
+.task-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.task-item:hover .task-item-actions {
+    opacity: 1;
+}
+
+.task-item-delete-btn {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+}
+
+.task-item-delete-btn:hover {
+    color: #ef4444;
+    background: #fee;
 }

@@ -1,4 +1,62 @@
-.addTask-container {
+.addtask-container {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 4px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.addtask-container:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.addtask-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 16px;
+    font-size: 15px;
+    color: #1a1a1a;
+    background: transparent;
+}
+
+.addtask-input::placeholder {
+    color: #9ca3af;
+}
+
+.addtask-submit-btn {
+    background: #3b82f6;
+    border: none;
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    color: white;
+}
+
+.addtask-submit-btn:hover {
+    background: #2563eb;
+}
+
+.addtask-submit-btn:active {
+    transform: scale(0.95);
+}
+
+.addtask-submit-icon {
+    flex-shrink: 0;
+}
+
+.addtask-container select {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 2px 8px;
 }

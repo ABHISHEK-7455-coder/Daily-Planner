@@ -1,0 +1,73 @@
+.today-container {
+    display: flex;
+    min-height: 100vh;
+    background: #f8f9fa;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+.today-main {
+    flex: 1;
+    padding: 32px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.today-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+}
+
+.today-title-section {
+    flex: 1;
+}
+
+.today-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 4px 0;
+}
+
+.today-date {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.today-date-navigation {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.today-nav-btn {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 4px 8px;
+    transition: color 0.2s;
+}
+
+.today-nav-btn:hover {
+    color: #1a1a1a;
+}
+
+.today-current-date {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a1a1a;
+    min-width: 80px;
+    text-align: center;
+}
+
+.today-section-wrapper {
+    margin-bottom: 24px;
+}

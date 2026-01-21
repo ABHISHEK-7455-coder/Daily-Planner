@@ -1,4 +1,5 @@
 import TaskItem from "./TaskItem";
+import "./TaskSection.css";
 
 export default function TaskSection({
     title,
@@ -11,21 +12,33 @@ export default function TaskSection({
 }) {
     if (tasks.length === 0) return null;
 
-    return (
-        <div style={{ marginBottom: 30 }}>
-            <h2>{title}</h2>
+    const getIcon = (title) => {
+        if (title === "Morning") return "☀️";
+        if (title === "Afternoon") return "☀️";
+        if (title === "Evening") return "🌙";
+        return "📝";
+    };
 
-            {tasks.map(task => (
-                <TaskItem
-                    key={task.id}
-                    task={task}
-                    onToggle={onToggle}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onMove={onMove}
-                    onSnooze={onSnooze}
-                />
-            ))}
+    return (
+        <div className="task-section">
+            <h3 className="task-section-title">
+                <span className="task-section-icon">{getIcon(title)}</span>
+                <span>{title}</span>
+            </h3>
+
+            <div className="task-section-list">
+                {tasks.map(task => (
+                    <TaskItem
+                        key={task.id}
+                        task={task}
+                        onToggle={onToggle}
+                        onDelete={onDelete}
+                        onEdit={onEdit}
+                        onMove={onMove}
+                        onSnooze={onSnooze}
+                    />
+                ))}
+            </div>
         </div>
     );
 }

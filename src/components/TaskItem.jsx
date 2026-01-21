@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "./TaskItem.css";
 
 export default function TaskItem({
     task,
@@ -15,27 +16,19 @@ export default function TaskItem({
         .filter(s => s !== task.timeOfDay);
 
     return (
-        <div
-            style={{
-                padding: 10,
-                marginBottom: 8,
-                borderRadius: 6,
-                background: "#f9fafb",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-            }}
-        >
+        <div className={`task-item ${task.completed ? 'task-item-completed' : ''}`}>
             {/* LEFT */}
-            <div>
+            <div className="task-item-left">
                 <input
                     type="checkbox"
+                    className="task-item-checkbox"
                     checked={task.completed}
                     onChange={() => onToggle(task.id)}
                 />
 
                 {isEditing ? (
                     <input
+                        className="task-item-edit-input"
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onBlur={() => {
@@ -43,42 +36,30 @@ export default function TaskItem({
                             setIsEditing(false);
                         }}
                         autoFocus
-                        style={{ marginLeft: 8 }}
                     />
                 ) : (
-                    <span
-                        onDoubleClick={() => setIsEditing(true)}
-                        style={{
-                            marginLeft: 8,
-                            textDecoration: task.completed ? "line-through" : "none",
-                            cursor: "pointer"
-                        }}
-                    >
-                        {task.title}
-                    </span>
+                    <div className="task-item-content">
+                        <span
+                            className="task-item-title"
+                            onDoubleClick={() => setIsEditing(true)}
+                        >
+                            {task.title}
+                        </span>
+                        {task.time && (
+                            <span className="task-item-time">{task.time}</span>
+                        )}
+                    </div>
                 )}
             </div>
 
             {/* RIGHT ACTIONS */}
-            <div style={{ display: "flex", gap: 6 }}>
-                {/* 🔹 Move buttons */}
-                {sections.map(sec => (
-                    <button
-                        key={sec}
-                        onClick={() => onMove(task.id, sec)}
-                        style={{ fontSize: 11 }}
-                    >
-                        → {sec}
-                    </button>
-                ))}
-
-                {/* 🔹 Snooze */}
-                <button onClick={() => onSnooze(task.id)}>
-                    Snooze
-                </button>
-
+            <div className="task-item-actions">
                 {/* 🔹 Delete */}
-                <button onClick={() => onDelete(task.id)}>✕</button>
+                <button className="task-item-delete-btn" onClick={() => onDelete(task.id)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                </button>
             </div>
         </div>
     );

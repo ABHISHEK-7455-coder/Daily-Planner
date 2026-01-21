@@ -3,70 +3,78 @@ import Sidebar from "../components/Sidebar";
 import AddTask from "../components/AddTask";
 import TaskSection from "../components/TaskSection";
 import ProgressBar from "../components/ProgressBar";
-import EndOfDayReflection from "../components/EndOfDayReflection";
+import ReflectionModal from "../components/ReflectionModal";
+import "./Today.css";
 
-const STORAGE_KEY = "daily-planner-tasks";
+/* 🔹 DATE HELPERS */
+const formatKey = (date) => date.toISOString().slice(0, 10);
+const addDays = (date, days) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+};
 
 export default function Today() {
-    /* 🔹 Persisted state (FIXED) */
-    const [tasks, setTasks] = useState(() => {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const dayKey = formatKey(currentDate);
 
-    /* 🔥 Micro-celebration message */
-    const [feedback, setFeedback] = useState("");
+    const [tasks, setTasks] = useState([]);
+    const [reflection, setReflection] = useState(null);
     const [showReflection, setShowReflection] = useState(false);
+
+    /* 🔥 IMPORTANT FLAG */
+    const [isHydrated, setIsHydrated] = useState(false);
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
 
-    /* 🔹 Save to localStorage */
+    /* 🔹 LOAD DAY DATA (ON DATE CHANGE) */
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-    }, [tasks]);
+        const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+        const dayData = allDays[dayKey];
 
-    /* 🔹 Auto clear feedback */
-    const autoClearFeedback = () => {
-        setTimeout(() => setFeedback(""), 3000);
-    };
+        setTasks(dayData?.tasks || []);
+        setReflection(dayData?.reflection || null);
 
-    /* 🔹 Add task */
-    const addTask = (title, timeOfDay) => {
-        const newTask = {
-            id: Date.now(),
-            title,
-            completed: false,
-            timeOfDay
+        setIsHydrated(true); // ✅ allow saving AFTER load
+    }, [dayKey]);
+
+    /* 🔹 SAVE DAY DATA (SAFE) */
+    useEffect(() => {
+        if (!isHydrated) return; // ❗ prevent overwrite
+
+        const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+
+        allDays[dayKey] = {
+            date: dayKey,
+            tasks,
+            reflection
         };
-        setTasks(prev => [newTask, ...prev]);
+
+        localStorage.setItem("days-data", JSON.stringify(allDays));
+    }, [tasks, reflection, dayKey, isHydrated]);
+
+    /* 🔹 TASK ACTIONS */
+    const addTask = (title, timeOfDay) => {
+        setTasks(prev => [
+            { id: Date.now(), title, completed: false, timeOfDay },
+            ...prev
+        ]);
     };
 
-    /* 🔹 Toggle task + celebration */
     const toggleTask = (id) => {
         setTasks(prev =>
-            prev.map(t => {
-                if (t.id === id && !t.completed) {
-                    setFeedback("Nice! Task completed ✅");
-                    autoClearFeedback();
-                    return { ...t, completed: true };
-                }
-                return t.id === id ? { ...t, completed: !t.completed } : t;
-            })
+            prev.map(t =>
+                t.id === id ? { ...t, completed: !t.completed } : t
+            )
         );
     };
 
-    /* 🔹 Delete */
     const deleteTask = (id) => {
         setTasks(prev => prev.filter(t => t.id !== id));
     };
 
-    /* 🔹 Edit */
     const editTask = (id, text) => {
         setTasks(prev =>
             prev.map(t =>
@@ -75,28 +83,28 @@ export default function Today() {
         );
     };
 
-    /* 🔥 Section completion detection */
-    useEffect(() => {
-        const sections = ["morning", "afternoon", "evening"];
+    const reorderTasks = (dragId, dropId) => {
+        setTasks(prev => {
+            const drag = prev.find(t => t.id === dragId);
+            const drop = prev.find(t => t.id === dropId);
+            if (!drag || !drop) return prev;
+            if (drag.timeOfDay !== drop.timeOfDay) return prev;
 
-        sections.forEach(section => {
-            const sectionTasks = tasks.filter(t => t.timeOfDay === section);
-            if (
-                sectionTasks.length > 0 &&
-                sectionTasks.every(t => t.completed)
-            ) {
-                const labels = {
-                    morning: " Morning",
-                    afternoon: " Afternoon",
-                    evening: " Evening"
-                };
-                setFeedback(` ${labels[section]} tasks done!`);
-                autoClearFeedback();
-            }
+            const section = prev.filter(
+                t => t.timeOfDay === drag.timeOfDay && t.id !== dragId
+            );
+            const others = prev.filter(
+                t => t.timeOfDay !== drag.timeOfDay
+            );
+
+            const idx = section.findIndex(t => t.id === dropId);
+            section.splice(idx, 0, drag);
+
+            return [...others, ...section];
         });
-    }, [tasks]);
+    };
 
-    /* 🔹 Scroll from sidebar */
+    /* 🔹 SIDEBAR SCROLL */
     const scrollToSection = (time) => {
         const map = {
             morning: morningRef,
@@ -106,141 +114,98 @@ export default function Today() {
         map[time]?.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    /* 🔹 Progress */
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length;
-
-    /* 🔹 Move task to another section */
-    const moveTask = (id, newTime) => {
-        setTasks(prev =>
-            prev.map(t =>
-                t.id === id
-                    ? { ...t, timeOfDay: newTime, completed: false }
-                    : t
-            )
-        );
-
-        setFeedback(`Moved to ${newTime} ⏰`);
-        autoClearFeedback();
-    };
-
-    /* 🔹 Snooze task (soft reset) */
-    const snoozeTask = (id) => {
-        setTasks(prev =>
-            prev.map(t =>
-                t.id === id
-                    ? { ...t, completed: false }
-                    : t
-            )
-        );
-
-        setFeedback("Task snoozed. You can do it later 🙂");
-        autoClearFeedback();
-    };
-
-    const moveUnfinishedToTomorrow = () => {
-        setTasks(prev =>
-            prev.map(t =>
-                t.completed
-                    ? t
-                    : { ...t, completed: false }
-            )
-        );
+    /* 🔹 SAVE REFLECTION */
+    const saveReflection = (data) => {
+        setReflection(data);
         setShowReflection(false);
     };
 
-    /* 🔹 Date formatting (clean) */
-    const todayDate = new Date().toLocaleDateString("en-IN", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        year: "numeric"
-    });
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.completed).length;
 
     return (
-        <div style={{ display: "flex", minHeight: "100vh" }}>
+        <div className="today-container">
             <Sidebar
                 tasks={tasks}
-                onToggle={toggleTask}
-                onDelete={deleteTask}
                 onScroll={scrollToSection}
+                onOpenReflection={() => setShowReflection(true)}
             />
 
-            <main style={{ flex: 1, padding: 20 }}>
-                <h1>Today's Tasks</h1>
-                <p>{todayDate}</p>
-                {/* 🔥 MICRO-CELEBRATION MESSAGE */}
-                {feedback && (
-                    <div style={{
-                        background: "#ecfdf5",
-                        color: "#065f46",
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        marginBottom: 12
-                    }}>
-                        {feedback}
+            <main className="today-main">
+                <div className="today-header">
+                    <div className="today-title-section">
+                        <h2 className="today-title">Today's Tasks</h2>
+                        <p className="today-date">{currentDate.toDateString()}</p>
                     </div>
-                )}
 
-                <ProgressBar
-                    total={totalTasks}
-                    completed={completedTasks}
-                />
+                    <div className="today-date-navigation">
+                        <button
+                            className="today-nav-btn"
+                            onClick={() => setCurrentDate(d => addDays(d, -1))}
+                        >
+                            ⬅
+                        </button>
 
+                        <span className="today-current-date">
+                            {currentDate.toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric"
+                            })}
+                        </span>
+
+                        <button
+                            className="today-nav-btn"
+                            onClick={() => setCurrentDate(d => addDays(d, 1))}
+                        >
+                            ➡
+                        </button>
+                    </div>
+                </div>
+
+                <ProgressBar total={totalTasks} completed={completedTasks} />
                 <AddTask onAdd={addTask} />
 
-                <div ref={morningRef}>
+                <div ref={morningRef} className="today-section-wrapper">
                     <TaskSection
                         title="Morning"
                         tasks={tasks.filter(t => t.timeOfDay === "morning")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={moveTask}
-                        onSnooze={snoozeTask}
+                        onReorder={reorderTasks}
                     />
                 </div>
 
-                <div ref={afternoonRef}>
+                <div ref={afternoonRef} className="today-section-wrapper">
                     <TaskSection
                         title="Afternoon"
                         tasks={tasks.filter(t => t.timeOfDay === "afternoon")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={moveTask}
-                        onSnooze={snoozeTask}
+                        onReorder={reorderTasks}
                     />
                 </div>
 
-                <div ref={eveningRef}>
+                <div ref={eveningRef} className="today-section-wrapper">
                     <TaskSection
                         title="Evening"
                         tasks={tasks.filter(t => t.timeOfDay === "evening")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={moveTask}
-                        onSnooze={snoozeTask}
+                        onReorder={reorderTasks}
                     />
                 </div>
-                <button
-                    style={{ marginBottom: 16 }}
-                    onClick={() => setShowReflection(true)}
-                >
-                    Done for today
-                </button>
-
-                {showReflection && (
-                    <EndOfDayReflection
-                        total={totalTasks}
-                        completed={completedTasks}
-                        onClose={() => setShowReflection(false)}
-                        onMoveUnfinished={moveUnfinishedToTomorrow}
-                    />
-                )}
-
             </main>
+
+            {showReflection && (
+                <ReflectionModal
+                    existing={reflection}
+                    onSave={saveReflection}
+                    onClose={() => setShowReflection(false)}
+                />
+            )}
         </div>
     );
 }
