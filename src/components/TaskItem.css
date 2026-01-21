@@ -1,0 +1,18 @@
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: grab;
+}
+
+.task-item:hover {
+  background: #f9fafb;
+}
+
+button {
+  background: none;
+  border: 1px solid lightgray;
+}

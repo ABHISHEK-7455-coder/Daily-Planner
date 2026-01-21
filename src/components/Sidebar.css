@@ -1,0 +1,10 @@
+.filter-btns {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+}
+
+.filter-btns button {
+    background: none;
+    border: 1px solid lightgray;
+}
