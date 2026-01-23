@@ -6,7 +6,9 @@ import ProgressBar from "../components/ProgressBar";
 import ReflectionModal from "../components/ReflectionModal";
 import PendingCarryOverModal from "../components/PendingCarryOverModal";
 import WeeklySummaryModal from "../components/WeeklySummaryModal";
+
 import "./Today.css";
+import GentleNotifications from "../components/GentleNotifications";
 
 /* 🔹 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -41,11 +43,11 @@ export default function Today() {
     const eveningRef = useRef(null);
 
     /* 🔔 Notification permission */
-    useEffect(() => {
-        if ("Notification" in window && Notification.permission === "default") {
-            Notification.requestPermission();
-        }
-    }, []);
+    // useEffect(() => {
+    //     if ("Notification" in window && Notification.permission === "default") {
+    //         Notification.requestPermission();
+    //     }
+    // }, []);
 
     /* 🔹 LOAD DAY DATA (SAFE) */
     useEffect(() => {
@@ -76,24 +78,24 @@ export default function Today() {
     }, [tasks, reflection, dayKey, isLoaded]);
 
     /* 🔔 11:30 PM PENDING TASK NOTIFICATION */
-    useEffect(() => {
-        if (!tasks.some(t => !t.completed)) return;
+    // useEffect(() => {
+    //     if (!tasks.some(t => !t.completed)) return;
 
-        const now = new Date();
-        const notifyTime = new Date();
-        notifyTime.setHours(23, 30, 0, 0);
-        if (now > notifyTime) return;
+    //     const now = new Date();
+    //     const notifyTime = new Date();
+    //     notifyTime.setHours(23, 30, 0, 0);
+    //     if (now > notifyTime) return;
 
-        const timer = setTimeout(() => {
-            if (Notification.permission === "granted") {
-                new Notification("⏰ Pending Tasks", {
-                    body: "You still have unfinished tasks today."
-                });
-            }
-        }, notifyTime - now);
+    //     const timer = setTimeout(() => {
+    //         if (Notification.permission === "granted") {
+    //             new Notification("⏰ Pending Tasks", {
+    //                 body: "You still have unfinished tasks today."
+    //             });
+    //         }
+    //     }, notifyTime - now);
 
-        return () => clearTimeout(timer);
-    }, [tasks]);
+    //     return () => clearTimeout(timer);
+    // }, [tasks]);
 
     /* ✅ CARRY-OVER CHECK (ONCE PER DAY ONLY) */
     useEffect(() => {
@@ -188,6 +190,7 @@ export default function Today() {
 
     return (
         <div className="today-container">
+              <GentleNotifications tasks={tasks} />
             <Sidebar
                 tasks={tasks}
                 onScroll={scrollToSection}
