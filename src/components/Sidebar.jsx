@@ -4,9 +4,10 @@ import "./Sidebar.css";
 export default function Sidebar({
   tasks = [],   // error-safe
   onScroll,
-  onOpenReflection
+  onOpenReflection,
+  onOpenWeeklySummary
 }) {
-//   const navigate = useNavigate();
+  //   const navigate = useNavigate();
 
   const completed = tasks.filter(t => t.completed).length;
   const total = tasks.length;
@@ -43,7 +44,12 @@ export default function Sidebar({
             <span className="sidebar-nav-icon">📊</span>
             <span className="sidebar-nav-label">Overview</span>
           </button>
+          <button className="sidebar-nav-item" onClick={onOpenWeeklySummary}>
+            <span className="sidebar-nav-icon">📊</span>
+            <span className="sidebar-nav-label">Weekly Summary</span>
+          </button>
         </nav>
+        
 
         {/* <div className="sidebar-projects">
           <div className="sidebar-projects-header">PROJECTS</div>
@@ -59,12 +65,12 @@ export default function Sidebar({
       </div>
 
       {/* 🔥 NEW: BOTTOM BUTTON */}
-      <div className="sidebar-footer">
+      {/* <div className="sidebar-footer">
         <button className="sidebar-new-list-btn">
           <span className="sidebar-new-list-icon">+</span>
           <span>New List</span>
         </button>
-      </div>
+      </div> */}
     </aside>
   );
 }

@@ -4,6 +4,8 @@ import AddTask from "../components/AddTask";
 import TaskSection from "../components/TaskSection";
 import ProgressBar from "../components/ProgressBar";
 import ReflectionModal from "../components/ReflectionModal";
+import PendingCarryOverModal from "../components/PendingCarryOverModal";
+import WeeklySummaryModal from "../components/WeeklySummaryModal";
 import "./Today.css";
 
 /* 🔹 DATE HELPERS */
@@ -14,6 +16,10 @@ const addDays = (date, days) => {
     return d;
 };
 
+/* 🔹 DAILY POPUP FLAG */
+const carryPopupKey = (date) =>
+    `carry-popup-shown-${formatKey(date)}`;
+
 export default function Today() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const dayKey = formatKey(currentDate);
@@ -22,27 +28,41 @@ export default function Today() {
     const [reflection, setReflection] = useState(null);
     const [showReflection, setShowReflection] = useState(false);
 
-    /* 🔥 IMPORTANT FLAG */
-    const [isHydrated, setIsHydrated] = useState(false);
+    const [showCarryModal, setShowCarryModal] = useState(false);
+    const [yesterdayTasks, setYesterdayTasks] = useState([]);
+
+    const [showWeekly, setShowWeekly] = useState(false);
+
+    /* 🔥 IMPORTANT: LOAD GUARD */
+    const [isLoaded, setIsLoaded] = useState(false);
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
 
-    /* 🔹 LOAD DAY DATA (ON DATE CHANGE) */
+    /* 🔔 Notification permission */
     useEffect(() => {
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    /* 🔹 LOAD DAY DATA (SAFE) */
+    useEffect(() => {
+        setIsLoaded(false);
+
         const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
         const dayData = allDays[dayKey];
 
         setTasks(dayData?.tasks || []);
         setReflection(dayData?.reflection || null);
 
-        setIsHydrated(true); // ✅ allow saving AFTER load
+        setIsLoaded(true); // ✅ allow saving after load
     }, [dayKey]);
 
-    /* 🔹 SAVE DAY DATA (SAFE) */
+    /* 🔹 SAVE DAY DATA (PROTECTED) */
     useEffect(() => {
-        if (!isHydrated) return; // ❗ prevent overwrite
+        if (!isLoaded) return; // ⛔ prevent overwrite
 
         const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
 
@@ -53,7 +73,47 @@ export default function Today() {
         };
 
         localStorage.setItem("days-data", JSON.stringify(allDays));
-    }, [tasks, reflection, dayKey, isHydrated]);
+    }, [tasks, reflection, dayKey, isLoaded]);
+
+    /* 🔔 11:30 PM PENDING TASK NOTIFICATION */
+    useEffect(() => {
+        if (!tasks.some(t => !t.completed)) return;
+
+        const now = new Date();
+        const notifyTime = new Date();
+        notifyTime.setHours(23, 30, 0, 0);
+        if (now > notifyTime) return;
+
+        const timer = setTimeout(() => {
+            if (Notification.permission === "granted") {
+                new Notification("⏰ Pending Tasks", {
+                    body: "You still have unfinished tasks today."
+                });
+            }
+        }, notifyTime - now);
+
+        return () => clearTimeout(timer);
+    }, [tasks]);
+
+    /* ✅ CARRY-OVER CHECK (ONCE PER DAY ONLY) */
+    useEffect(() => {
+        const popupShown = localStorage.getItem(carryPopupKey(new Date()));
+        if (popupShown) return;
+
+        const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+        const yesterdayKey = formatKey(addDays(new Date(), -1));
+        const yesterday = allDays[yesterdayKey];
+
+        if (!yesterday?.tasks) return;
+
+        const pending = yesterday.tasks.filter(t => !t.completed);
+        if (!pending.length) return;
+
+        setYesterdayTasks(pending);
+        setShowCarryModal(true);
+
+        localStorage.setItem(carryPopupKey(new Date()), "true");
+    }, []);
 
     /* 🔹 TASK ACTIONS */
     const addTask = (title, timeOfDay) => {
@@ -87,15 +147,12 @@ export default function Today() {
         setTasks(prev => {
             const drag = prev.find(t => t.id === dragId);
             const drop = prev.find(t => t.id === dropId);
-            if (!drag || !drop) return prev;
-            if (drag.timeOfDay !== drop.timeOfDay) return prev;
+            if (!drag || !drop || drag.timeOfDay !== drop.timeOfDay) return prev;
 
             const section = prev.filter(
                 t => t.timeOfDay === drag.timeOfDay && t.id !== dragId
             );
-            const others = prev.filter(
-                t => t.timeOfDay !== drag.timeOfDay
-            );
+            const others = prev.filter(t => t.timeOfDay !== drag.timeOfDay);
 
             const idx = section.findIndex(t => t.id === dropId);
             section.splice(idx, 0, drag);
@@ -106,22 +163,28 @@ export default function Today() {
 
     /* 🔹 SIDEBAR SCROLL */
     const scrollToSection = (time) => {
-        const map = {
-            morning: morningRef,
-            afternoon: afternoonRef,
-            evening: eveningRef
-        };
+        const map = { morning: morningRef, afternoon: afternoonRef, evening: eveningRef };
         map[time]?.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    /* 🔹 SAVE REFLECTION */
+    /* 🔹 REFLECTION */
     const saveReflection = (data) => {
         setReflection(data);
         setShowReflection(false);
     };
 
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length;
+    /* 🔁 CARRY-OVER ACCEPT */
+    const acceptCarryOver = () => {
+        setTasks(prev => [
+            ...yesterdayTasks.map(t => ({
+                ...t,
+                id: Date.now() + Math.random(),
+                completed: false
+            })),
+            ...prev
+        ]);
+        setShowCarryModal(false);
+    };
 
     return (
         <div className="today-container">
@@ -129,43 +192,27 @@ export default function Today() {
                 tasks={tasks}
                 onScroll={scrollToSection}
                 onOpenReflection={() => setShowReflection(true)}
+                onOpenWeeklySummary={() => setShowWeekly(true)}
             />
 
             <main className="today-main">
                 <div className="today-header">
-                    <div className="today-title-section">
-                        <h2 className="today-title">Today's Tasks</h2>
-                        <p className="today-date">{currentDate.toDateString()}</p>
-                    </div>
-
+                    <h2>Today's Tasks</h2>
                     <div className="today-date-navigation">
-                        <button
-                            className="today-nav-btn"
-                            onClick={() => setCurrentDate(d => addDays(d, -1))}
-                        >
-                            ⬅
-                        </button>
-
-                        <span className="today-current-date">
-                            {currentDate.toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric"
-                            })}
-                        </span>
-
-                        <button
-                            className="today-nav-btn"
-                            onClick={() => setCurrentDate(d => addDays(d, 1))}
-                        >
-                            ➡
-                        </button>
+                        <button onClick={() => setCurrentDate(d => addDays(d, -1))}>⬅</button>
+                        <span>{currentDate.toDateString()}</span>
+                        <button onClick={() => setCurrentDate(d => addDays(d, 1))}>➡</button>
                     </div>
                 </div>
 
-                <ProgressBar total={totalTasks} completed={completedTasks} />
+                <ProgressBar
+                    total={tasks.length}
+                    completed={tasks.filter(t => t.completed).length}
+                />
+
                 <AddTask onAdd={addTask} />
 
-                <div ref={morningRef} className="today-section-wrapper">
+                <div ref={morningRef}>
                     <TaskSection
                         title="Morning"
                         tasks={tasks.filter(t => t.timeOfDay === "morning")}
@@ -176,7 +223,7 @@ export default function Today() {
                     />
                 </div>
 
-                <div ref={afternoonRef} className="today-section-wrapper">
+                <div ref={afternoonRef}>
                     <TaskSection
                         title="Afternoon"
                         tasks={tasks.filter(t => t.timeOfDay === "afternoon")}
@@ -187,7 +234,7 @@ export default function Today() {
                     />
                 </div>
 
-                <div ref={eveningRef} className="today-section-wrapper">
+                <div ref={eveningRef}>
                     <TaskSection
                         title="Evening"
                         tasks={tasks.filter(t => t.timeOfDay === "evening")}
@@ -205,6 +252,18 @@ export default function Today() {
                     onSave={saveReflection}
                     onClose={() => setShowReflection(false)}
                 />
+            )}
+
+            {showCarryModal && (
+                <PendingCarryOverModal
+                    count={yesterdayTasks.length}
+                    onAccept={acceptCarryOver}
+                    onReject={() => setShowCarryModal(false)}
+                />
+            )}
+
+            {showWeekly && (
+                <WeeklySummaryModal onClose={() => setShowWeekly(false)} />
             )}
         </div>
     );
