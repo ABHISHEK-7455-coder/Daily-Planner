@@ -10,20 +10,13 @@ export default function TaskSection({
     onEdit,
     onMove,
     onSnooze,
-
-    /* 🔥 NEW POV PROPS */
-    povText = "",
-    onSavePov
+    selectedDate // 👈 pass date from Today.jsx (YYYY-MM-DD)
 }) {
-    const [localPov, setLocalPov] = useState(povText);
-
-    /* 🔁 Sync POV when date/day changes */
-    useEffect(() => {
-        setLocalPov(povText || "");
-    }, [povText]);
-
     if (tasks.length === 0) return null;
 
+    const [pov, setPov] = useState("");
+
+    /* ---------------- ICON ---------------- */
     const getIcon = (title) => {
         if (title === "Morning") return "☀️";
         if (title === "Afternoon") return "🌤️";
@@ -31,7 +24,38 @@ export default function TaskSection({
         return "📝";
     };
 
-    const sectionKey = title.toLowerCase();
+    /* ---------------- LOAD POV ---------------- */
+    useEffect(() => {
+        const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
+        const dayPOV = stored[selectedDate]?.[title] || "";
+        setPov(dayPOV);
+    }, [selectedDate, title]);
+
+    /* ---------------- SAVE POV ---------------- */
+    const handlePOVChange = (e) => {
+        const value = e.target.value;
+        setPov(value);
+
+        const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
+
+        if (!stored[selectedDate]) {
+            stored[selectedDate] = {};
+        }
+
+        stored[selectedDate][title] = value;
+
+        localStorage.setItem("dailyPOV", JSON.stringify(stored));
+    };
+
+    /* ---------------- COMPLETION CHECK ---------------- */
+    const allCompleted = tasks.every(t => t.completed);
+    const someCompleted = tasks.some(t => t.completed);
+
+    const povPlaceholder = allCompleted
+        ? "How did this part of your day go?"
+        : someCompleted
+            ? "What helped / what didn’t?"
+            : "Why were these tasks hard to start?";
 
     return (
         <div className="task-section">
@@ -54,18 +78,12 @@ export default function TaskSection({
                 ))}
             </div>
 
-            {/* ✍️ POV TEXTAREA */}
-            <div className="task-section-pov">
-                <label className="pov-label">
-                    Your thoughts about {title.toLowerCase()}
-                </label>
-
+            {/* ---------- POV TEXTAREA ---------- */}
+            <div className="section-pov">
                 <textarea
-                    className="pov-textarea"
-                    placeholder={`How did ${title.toLowerCase()} go?`}
-                    value={localPov}
-                    onChange={(e) => setLocalPov(e.target.value)}
-                    onBlur={() => onSavePov(sectionKey, localPov)}
+                    value={pov}
+                    onChange={handlePOVChange}
+                    placeholder={povPlaceholder}
                 />
             </div>
         </div>

@@ -27,3 +27,24 @@
     border-radius: 14px;
     width: 98.5%;
 }
+
+.section-pov {
+    margin-top: 12px;
+}
+
+.section-pov textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    resize: vertical;
+    background: #fafafa;
+}
+
+.section-pov textarea:focus {
+    outline: none;
+    border-color: #6366f1;
+    background: #fff;
+}

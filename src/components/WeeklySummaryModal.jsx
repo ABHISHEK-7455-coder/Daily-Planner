@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import "./WeeklySummaryModal.css";
 
 /* ---------- helpers ---------- */
@@ -13,12 +13,54 @@ const getWeekDates = (baseDate = new Date()) => {
     });
 };
 
+const getWeekKey = (date = new Date()) => {
+    const firstDay = new Date(date);
+    firstDay.setDate(firstDay.getDate() - firstDay.getDay());
+
+    const year = firstDay.getFullYear();
+    const week = Math.ceil(
+        (((firstDay - new Date(year, 0, 1)) / 86400000) +
+            new Date(year, 0, 1).getDay() + 1) / 7
+    );
+
+    return `${year}-W${week}`;
+};
+
 export default function WeeklySummaryModal({ onClose }) {
     const [view, setView] = useState("completed");
     const [reflection, setReflection] = useState("");
 
-    const daysData = JSON.parse(localStorage.getItem("days-data")) || {};
+    const weekKey = getWeekKey();
     const weekDates = getWeekDates();
+
+    const daysData =
+        JSON.parse(localStorage.getItem("days-data")) || {};
+
+    /* 🔹 LOAD WEEKLY REFLECTION */
+    useEffect(() => {
+        const stored =
+            JSON.parse(localStorage.getItem("weekly-reflections")) || {};
+
+        if (stored[weekKey]) {
+            setReflection(stored[weekKey].reflection || "");
+        }
+    }, [weekKey]);
+
+    /* 🔹 SAVE WEEKLY REFLECTION */
+    useEffect(() => {
+        const all =
+            JSON.parse(localStorage.getItem("weekly-reflections")) || {};
+
+        all[weekKey] = {
+            reflection,
+            updatedAt: new Date().toISOString()
+        };
+
+        localStorage.setItem(
+            "weekly-reflections",
+            JSON.stringify(all)
+        );
+    }, [reflection, weekKey]);
 
     const summary = useMemo(() => {
         const completed = {};
@@ -46,11 +88,12 @@ export default function WeeklySummaryModal({ onClose }) {
         });
 
         return { completed, pending, stats };
-    }, [daysData]);
+    }, [daysData, weekDates]);
 
-    const activeData = view === "completed"
-        ? summary.completed
-        : summary.pending;
+    const activeData =
+        view === "completed"
+            ? summary.completed
+            : summary.pending;
 
     return (
         <div className="weekly-overlay">
@@ -107,16 +150,11 @@ export default function WeeklySummaryModal({ onClose }) {
 
                     {Object.entries(activeData).map(([date, tasks]) => (
                         <div key={date} className="weekly-day">
-                            <h4>
-                                {new Date(date).toDateString()}
-                            </h4>
-
+                            <h4>{new Date(date).toDateString()}</h4>
                             <ul>
                                 {tasks.map(task => (
                                     <li key={task.id}>
-                                        <span className="time">
-                                            {task.timeOfDay}
-                                        </span>
+                                        <strong>{task.timeOfDay}</strong>{" "}
                                         {task.title}
                                     </li>
                                 ))}
@@ -125,13 +163,13 @@ export default function WeeklySummaryModal({ onClose }) {
                     ))}
                 </div>
 
-                {/* 🧠 REFLECTION */}
+                {/* 🧠 WEEKLY REFLECTION */}
                 <div className="weekly-reflection">
                     <label>
                         What stopped you this week?
                     </label>
                     <textarea
-                        placeholder="Be honest. This is just for you."
+                        placeholder="Be honest. This is for you only."
                         value={reflection}
                         onChange={e => setReflection(e.target.value)}
                     />
