@@ -77,3 +77,15 @@
 .today-section-wrapper {
     margin-bottom: 24px;
 }
+
+.today-container {
+    display: flex;
+    height: 100vh;
+}
+
+.today-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scrollbar-width: none;
+}

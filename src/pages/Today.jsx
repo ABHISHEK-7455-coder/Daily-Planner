@@ -6,6 +6,7 @@ import ProgressBar from "../components/ProgressBar";
 import ReflectionModal from "../components/ReflectionModal";
 import PendingCarryOverModal from "../components/PendingCarryOverModal";
 import WeeklySummaryModal from "../components/WeeklySummaryModal";
+import DailyNotes from "../components/DailyNotes";
 
 import "./Today.css";
 import GentleNotifications from "../components/GentleNotifications";
@@ -268,6 +269,9 @@ export default function Today() {
             {showWeekly && (
                 <WeeklySummaryModal onClose={() => setShowWeekly(false)} />
             )}
+
+            <DailyNotes currentDate={currentDate} />
+
         </div>
     );
 }

@@ -33,11 +33,11 @@
 }
 
 .section-pov textarea {
-    width: 100%;
+    width: 97%;
     min-height: 70px;
     padding: 10px;
     font-size: 14px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid #e5e7eb;
     resize: vertical;
     background: #fafafa;
