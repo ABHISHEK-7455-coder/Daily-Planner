@@ -317,17 +317,17 @@ async function sendToAllUsers(notification) {
 
 // ⏰ TESTING SCHEDULE - EVERY MINUTE (for quick testing)
 // This will send a notification every minute so you can test immediately
-cron.schedule('* * * * *', () => {
-  const now = new Date();
-  console.log(`⏰ Test notification at ${now.toLocaleTimeString()}`);
+// cron.schedule('* * * * *', () => {
+//   const now = new Date();
+//   console.log(`⏰ Test notification at ${now.toLocaleTimeString()}`);
   
-  sendToAllUsers({
-    title: '⏰ Test Reminder',
-    body: `Notification triggered at ${now.toLocaleTimeString()}`,
-    tag: 'test-scheduled',
-    url: '/'
-  });
-});
+//   sendToAllUsers({
+//     title: '⏰ Test Reminder',
+//     body: `Notification triggered at ${now.toLocaleTimeString()}`,
+//     tag: 'test-scheduled',
+//     url: '/'
+//   });
+// });
 
 // 🔥 OR TEST AT SPECIFIC TIME - 12:00 PM
 // Uncomment this if you want to test at exactly 12 PM
@@ -345,19 +345,19 @@ cron.schedule('0 12 * * *', () => {
 // 🔥 OR TEST IN NEXT 2 MINUTES - runs at specific minute
 // For example: if current time is 12:34, this runs at 12:36
 
-const testMinute = (new Date().getMinutes() + 2) % 60;
-cron.schedule(`${testMinute} * * * *`, () => {
-  sendToAllUsers({
-    title: '⏰ 2-Minute Test',
-    body: 'This notification was scheduled 2 minutes ago!',
-    tag: '2min-test',
-    url: '/'
-  });
-});
+// const testMinute = (new Date().getMinutes() + 2) % 60;
+// cron.schedule(`${testMinute} * * * *`, () => {
+//   sendToAllUsers({
+//     title: '⏰ 2-Minute Test',
+//     body: 'This notification was scheduled 2 minutes ago!',
+//     tag: '2min-test',
+//     url: '/'
+//   });
+// });
 
 
 // ⬇️ ORIGINAL PRODUCTION SCHEDULE (commented out for testing)
-/*
+
 // Morning notification - 8:00 AM
 cron.schedule('0 8 * * *', () => {
   sendToAllUsers({
@@ -387,7 +387,7 @@ cron.schedule('30 23 * * *', () => {
     url: '/'
   });
 });
-*/
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
