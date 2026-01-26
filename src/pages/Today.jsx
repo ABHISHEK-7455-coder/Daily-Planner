@@ -7,9 +7,9 @@ import ReflectionModal from "../components/ReflectionModal";
 import PendingCarryOverModal from "../components/PendingCarryOverModal";
 import WeeklySummaryModal from "../components/WeeklySummaryModal";
 import DailyNotes from "../components/DailyNotes";
+import GentleNotifications from "../components/GentleNotifications";
 
 import "./Today.css";
-import GentleNotifications from "../components/GentleNotifications";
 
 /* 🔹 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -36,21 +36,13 @@ export default function Today() {
 
     const [showWeekly, setShowWeekly] = useState(false);
 
-    /* 🔥 IMPORTANT: LOAD GUARD */
     const [isLoaded, setIsLoaded] = useState(false);
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
 
-    /* 🔔 Notification permission */
-    // useEffect(() => {
-    //     if ("Notification" in window && Notification.permission === "default") {
-    //         Notification.requestPermission();
-    //     }
-    // }, []);
-
-    /* 🔹 LOAD DAY DATA (SAFE) */
+    /* 🔹 LOAD DAY DATA */
     useEffect(() => {
         setIsLoaded(false);
 
@@ -60,45 +52,19 @@ export default function Today() {
         setTasks(dayData?.tasks || []);
         setReflection(dayData?.reflection || null);
 
-        setIsLoaded(true); // ✅ allow saving after load
+        setIsLoaded(true);
     }, [dayKey]);
 
-    /* 🔹 SAVE DAY DATA (PROTECTED) */
+    /* 🔹 SAVE DAY DATA */
     useEffect(() => {
-        if (!isLoaded) return; // ⛔ prevent overwrite
+        if (!isLoaded) return;
 
         const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
-
-        allDays[dayKey] = {
-            date: dayKey,
-            tasks,
-            reflection
-        };
-
+        allDays[dayKey] = { date: dayKey, tasks, reflection };
         localStorage.setItem("days-data", JSON.stringify(allDays));
     }, [tasks, reflection, dayKey, isLoaded]);
 
-    /* 🔔 11:30 PM PENDING TASK NOTIFICATION */
-    // useEffect(() => {
-    //     if (!tasks.some(t => !t.completed)) return;
-
-    //     const now = new Date();
-    //     const notifyTime = new Date();
-    //     notifyTime.setHours(23, 30, 0, 0);
-    //     if (now > notifyTime) return;
-
-    //     const timer = setTimeout(() => {
-    //         if (Notification.permission === "granted") {
-    //             new Notification("⏰ Pending Tasks", {
-    //                 body: "You still have unfinished tasks today."
-    //             });
-    //         }
-    //     }, notifyTime - now);
-
-    //     return () => clearTimeout(timer);
-    // }, [tasks]);
-
-    /* ✅ CARRY-OVER CHECK (ONCE PER DAY ONLY) */
+    /* ✅ CARRY OVER CHECK */
     useEffect(() => {
         const popupShown = localStorage.getItem(carryPopupKey(new Date()));
         if (popupShown) return;
@@ -114,7 +80,6 @@ export default function Today() {
 
         setYesterdayTasks(pending);
         setShowCarryModal(true);
-
         localStorage.setItem(carryPopupKey(new Date()), "true");
     }, []);
 
@@ -128,9 +93,7 @@ export default function Today() {
 
     const toggleTask = (id) => {
         setTasks(prev =>
-            prev.map(t =>
-                t.id === id ? { ...t, completed: !t.completed } : t
-            )
+            prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t)
         );
     };
 
@@ -140,9 +103,7 @@ export default function Today() {
 
     const editTask = (id, text) => {
         setTasks(prev =>
-            prev.map(t =>
-                t.id === id ? { ...t, title: text } : t
-            )
+            prev.map(t => t.id === id ? { ...t, title: text } : t)
         );
     };
 
@@ -164,19 +125,16 @@ export default function Today() {
         });
     };
 
-    /* 🔹 SIDEBAR SCROLL */
     const scrollToSection = (time) => {
         const map = { morning: morningRef, afternoon: afternoonRef, evening: eveningRef };
         map[time]?.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    /* 🔹 REFLECTION */
     const saveReflection = (data) => {
         setReflection(data);
         setShowReflection(false);
     };
 
-    /* 🔁 CARRY-OVER ACCEPT */
     const acceptCarryOver = () => {
         setTasks(prev => [
             ...yesterdayTasks.map(t => ({
@@ -191,7 +149,8 @@ export default function Today() {
 
     return (
         <div className="today-container">
-              <GentleNotifications tasks={tasks} />
+            <GentleNotifications tasks={tasks} />
+
             <Sidebar
                 tasks={tasks}
                 onScroll={scrollToSection}
@@ -219,33 +178,36 @@ export default function Today() {
                 <div ref={morningRef}>
                     <TaskSection
                         title="Morning"
+                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "morning")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onReorder={reorderTasks}
+                        onMove={reorderTasks}
                     />
                 </div>
 
                 <div ref={afternoonRef}>
                     <TaskSection
                         title="Afternoon"
+                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "afternoon")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onReorder={reorderTasks}
+                        onMove={reorderTasks}
                     />
                 </div>
 
                 <div ref={eveningRef}>
                     <TaskSection
                         title="Evening"
+                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "evening")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onReorder={reorderTasks}
+                        onMove={reorderTasks}
                     />
                 </div>
             </main>
@@ -271,7 +233,6 @@ export default function Today() {
             )}
 
             <DailyNotes currentDate={currentDate} />
-
         </div>
     );
 }
