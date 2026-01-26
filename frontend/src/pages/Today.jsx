@@ -7,11 +7,12 @@ import ReflectionModal from "../components/ReflectionModal";
 import PendingCarryOverModal from "../components/PendingCarryOverModal";
 import WeeklySummaryModal from "../components/WeeklySummaryModal";
 import DailyNotes from "../components/DailyNotes";
+import PushNotifications from "../components/PushNotifications";
 
 import "./Today.css";
-import GentleNotifications from "../components/GentleNotifications";
 
-/* 🔹 DATE HELPERS */
+
+/* 📹 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
 const addDays = (date, days) => {
     const d = new Date(date);
@@ -19,7 +20,7 @@ const addDays = (date, days) => {
     return d;
 };
 
-/* 🔹 DAILY POPUP FLAG */
+/* 📹 DAILY POPUP FLAG */
 const carryPopupKey = (date) =>
     `carry-popup-shown-${formatKey(date)}`;
 
@@ -43,14 +44,7 @@ export default function Today() {
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
 
-    /* 🔔 Notification permission */
-    // useEffect(() => {
-    //     if ("Notification" in window && Notification.permission === "default") {
-    //         Notification.requestPermission();
-    //     }
-    // }, []);
-
-    /* 🔹 LOAD DAY DATA (SAFE) */
+    /* 📹 LOAD DAY DATA (SAFE) */
     useEffect(() => {
         setIsLoaded(false);
 
@@ -63,7 +57,7 @@ export default function Today() {
         setIsLoaded(true); // ✅ allow saving after load
     }, [dayKey]);
 
-    /* 🔹 SAVE DAY DATA (PROTECTED) */
+    /* 📹 SAVE DAY DATA (PROTECTED) */
     useEffect(() => {
         if (!isLoaded) return; // ⛔ prevent overwrite
 
@@ -77,26 +71,6 @@ export default function Today() {
 
         localStorage.setItem("days-data", JSON.stringify(allDays));
     }, [tasks, reflection, dayKey, isLoaded]);
-
-    /* 🔔 11:30 PM PENDING TASK NOTIFICATION */
-    // useEffect(() => {
-    //     if (!tasks.some(t => !t.completed)) return;
-
-    //     const now = new Date();
-    //     const notifyTime = new Date();
-    //     notifyTime.setHours(23, 30, 0, 0);
-    //     if (now > notifyTime) return;
-
-    //     const timer = setTimeout(() => {
-    //         if (Notification.permission === "granted") {
-    //             new Notification("⏰ Pending Tasks", {
-    //                 body: "You still have unfinished tasks today."
-    //             });
-    //         }
-    //     }, notifyTime - now);
-
-    //     return () => clearTimeout(timer);
-    // }, [tasks]);
 
     /* ✅ CARRY-OVER CHECK (ONCE PER DAY ONLY) */
     useEffect(() => {
@@ -118,7 +92,7 @@ export default function Today() {
         localStorage.setItem(carryPopupKey(new Date()), "true");
     }, []);
 
-    /* 🔹 TASK ACTIONS */
+    /* 📹 TASK ACTIONS */
     const addTask = (title, timeOfDay) => {
         setTasks(prev => [
             { id: Date.now(), title, completed: false, timeOfDay },
@@ -164,19 +138,19 @@ export default function Today() {
         });
     };
 
-    /* 🔹 SIDEBAR SCROLL */
+    /* 📹 SIDEBAR SCROLL */
     const scrollToSection = (time) => {
         const map = { morning: morningRef, afternoon: afternoonRef, evening: eveningRef };
         map[time]?.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    /* 🔹 REFLECTION */
+    /* 📹 REFLECTION */
     const saveReflection = (data) => {
         setReflection(data);
         setShowReflection(false);
     };
 
-    /* 🔁 CARRY-OVER ACCEPT */
+    /* 📋 CARRY-OVER ACCEPT */
     const acceptCarryOver = () => {
         setTasks(prev => [
             ...yesterdayTasks.map(t => ({
@@ -191,7 +165,9 @@ export default function Today() {
 
     return (
         <div className="today-container">
-              <GentleNotifications tasks={tasks} />
+            {/* 🔔 Push Notifications - minimal banner that shows once */}
+            <PushNotifications />
+
             <Sidebar
                 tasks={tasks}
                 onScroll={scrollToSection}
