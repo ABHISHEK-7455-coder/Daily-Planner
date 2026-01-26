@@ -10,13 +10,12 @@ export default function TaskSection({
     onEdit,
     onMove,
     onSnooze,
-    selectedDate // 👈 pass date from Today.jsx (YYYY-MM-DD)
+    selectedDate
 }) {
     if (tasks.length === 0) return null;
 
     const [pov, setPov] = useState("");
 
-    /* ---------------- ICON ---------------- */
     const getIcon = (title) => {
         if (title === "Morning") return "☀️";
         if (title === "Afternoon") return "🌤️";
@@ -24,30 +23,24 @@ export default function TaskSection({
         return "📝";
     };
 
-    /* ---------------- LOAD POV ---------------- */
+    /* ---------- LOAD POV PER DAY ---------- */
     useEffect(() => {
         const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
-        const dayPOV = stored[selectedDate]?.[title] || "";
-        setPov(dayPOV);
+        setPov(stored?.[selectedDate]?.[title] || "");
     }, [selectedDate, title]);
 
-    /* ---------------- SAVE POV ---------------- */
+    /* ---------- SAVE POV PER DAY ---------- */
     const handlePOVChange = (e) => {
         const value = e.target.value;
         setPov(value);
 
         const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
-
-        if (!stored[selectedDate]) {
-            stored[selectedDate] = {};
-        }
-
+        stored[selectedDate] = stored[selectedDate] || {};
         stored[selectedDate][title] = value;
 
         localStorage.setItem("dailyPOV", JSON.stringify(stored));
     };
 
-    /* ---------------- COMPLETION CHECK ---------------- */
     const allCompleted = tasks.every(t => t.completed);
     const someCompleted = tasks.some(t => t.completed);
 
@@ -78,7 +71,6 @@ export default function TaskSection({
                 ))}
             </div>
 
-            {/* ---------- POV TEXTAREA ---------- */}
             <div className="section-pov">
                 <textarea
                     value={pov}
