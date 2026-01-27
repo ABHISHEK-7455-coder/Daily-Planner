@@ -1,4 +1,7 @@
+import React from "react";
 import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+
 import Sidebar from "../components/Sidebar";
 import AddTask from "../components/AddTask";
 import TaskSection from "../components/TaskSection";
@@ -24,7 +27,11 @@ const carryPopupKey = (date) =>
     `carry-popup-shown-${formatKey(date)}`;
 
 export default function Today() {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const { date } = useParams();              // 👈 READ FROM URL
+    const navigate = useNavigate();
+
+    const parsedDate = date ? new Date(date) : new Date();
+    const [currentDate, setCurrentDate] = useState(parsedDate);
     const dayKey = formatKey(currentDate);
 
     const [tasks, setTasks] = useState([]);
@@ -33,7 +40,6 @@ export default function Today() {
 
     const [showCarryModal, setShowCarryModal] = useState(false);
     const [yesterdayTasks, setYesterdayTasks] = useState([]);
-
     const [showWeekly, setShowWeekly] = useState(false);
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -41,6 +47,12 @@ export default function Today() {
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
+
+    /* 🔄 SYNC URL → STATE */
+    useEffect(() => {
+        if (!date) return;
+        setCurrentDate(new Date(date));
+    }, [date]);
 
     /* 🔹 LOAD DAY DATA */
     useEffect(() => {
@@ -61,11 +73,15 @@ export default function Today() {
 
         const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
         allDays[dayKey] = { date: dayKey, tasks, reflection };
+
         localStorage.setItem("days-data", JSON.stringify(allDays));
     }, [tasks, reflection, dayKey, isLoaded]);
 
-    /* ✅ CARRY OVER CHECK */
+    /* ✅ CARRY-OVER CHECK (ONLY REAL TODAY) */
     useEffect(() => {
+        const todayKey = formatKey(new Date());
+        if (dayKey !== todayKey) return;
+
         const popupShown = localStorage.getItem(carryPopupKey(new Date()));
         if (popupShown) return;
 
@@ -80,15 +96,69 @@ export default function Today() {
 
         setYesterdayTasks(pending);
         setShowCarryModal(true);
+
         localStorage.setItem(carryPopupKey(new Date()), "true");
-    }, []);
+    }, [dayKey]);
 
     /* 🔹 TASK ACTIONS */
-    const addTask = (title, timeOfDay) => {
+    const addTask = (title, timeOfDay, startTime = null, endTime = null) => {
         setTasks(prev => [
-            { id: Date.now(), title, completed: false, timeOfDay },
+            {
+                id: Date.now(),
+                title,
+                completed: false,
+                timeOfDay,
+                startTime,
+                endTime
+            },
             ...prev
         ]);
+    };
+
+    const moveTaskToDate = (task, targetDateKey, newTimeOfDay = task.timeOfDay) => {
+        const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+
+        // Remove from current day
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+
+        // Add to target day
+        const targetDay = allDays[targetDateKey] || { date: targetDateKey, tasks: [] };
+
+        targetDay.tasks.unshift({
+            ...task,
+            id: Date.now(),
+            timeOfDay: newTimeOfDay,
+            completed: false
+        });
+
+        allDays[targetDateKey] = targetDay;
+        localStorage.setItem("days-data", JSON.stringify(allDays));
+    };
+
+    const snoozeTask = (task, option) => {
+        if (option === "later") {
+            const map = { morning: "afternoon", afternoon: "evening", evening: "evening" };
+            setTasks(prev =>
+                prev.map(t =>
+                    t.id === task.id
+                        ? { ...t, timeOfDay: map[t.timeOfDay] }
+                        : t
+                )
+            );
+        }
+
+        if (option === "tomorrow") {
+            const tomorrowKey = formatKey(addDays(currentDate, 1));
+            moveTaskToDate(task, tomorrowKey);
+        }
+    };
+
+    const moveTaskTime = (task, newTimeOfDay) => {
+        setTasks(prev =>
+            prev.map(t =>
+                t.id === task.id ? { ...t, timeOfDay: newTimeOfDay } : t
+            )
+        );
     };
 
     const toggleTask = (id) => {
@@ -125,6 +195,13 @@ export default function Today() {
         });
     };
 
+    /* 🔹 DATE NAVIGATION (URL-DRIVEN) */
+    const goToDay = (days) => {
+        const next = addDays(currentDate, days);
+        navigate(`/day/${formatKey(next)}`);
+    };
+
+    /* 🔹 SCROLL */
     const scrollToSection = (time) => {
         const map = { morning: morningRef, afternoon: afternoonRef, evening: eveningRef };
         map[time]?.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,11 +237,11 @@ export default function Today() {
 
             <main className="today-main">
                 <div className="today-header">
-                    <h2>Today's Tasks</h2>
+                    <h2>Tasks</h2>
                     <div className="today-date-navigation">
-                        <button onClick={() => setCurrentDate(d => addDays(d, -1))}>⬅</button>
+                        <button onClick={() => goToDay(-1)}>⬅</button>
                         <span>{currentDate.toDateString()}</span>
-                        <button onClick={() => setCurrentDate(d => addDays(d, 1))}>➡</button>
+                        <button onClick={() => goToDay(1)}>➡</button>
                     </div>
                 </div>
 
@@ -178,46 +255,48 @@ export default function Today() {
                 <div ref={morningRef}>
                     <TaskSection
                         title="Morning"
-                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "morning")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={reorderTasks}
+                        onReorder={reorderTasks}
+                        selectedDate={dayKey}
+                        onSnooze={snoozeTask}
+                        onMove={moveTaskTime}
                     />
                 </div>
 
                 <div ref={afternoonRef}>
                     <TaskSection
                         title="Afternoon"
-                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "afternoon")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={reorderTasks}
+                        onReorder={reorderTasks}
+                        selectedDate={dayKey}
+                        onSnooze={snoozeTask}
+                        onMove={moveTaskTime}
                     />
                 </div>
 
                 <div ref={eveningRef}>
                     <TaskSection
                         title="Evening"
-                        selectedDate={dayKey}
                         tasks={tasks.filter(t => t.timeOfDay === "evening")}
                         onToggle={toggleTask}
                         onDelete={deleteTask}
                         onEdit={editTask}
-                        onMove={reorderTasks}
+                        onReorder={reorderTasks}
+                        selectedDate={dayKey}
+                        onSnooze={snoozeTask}
+                        onMove={moveTaskTime}
                     />
                 </div>
             </main>
 
             {showReflection && (
-                <ReflectionModal
-                    existing={reflection}
-                    onSave={saveReflection}
-                    onClose={() => setShowReflection(false)}
-                />
+                <ReflectionModal existing={reflection} onSave={saveReflection} onClose={() => setShowReflection(false)} />
             )}
 
             {showCarryModal && (
@@ -228,9 +307,7 @@ export default function Today() {
                 />
             )}
 
-            {showWeekly && (
-                <WeeklySummaryModal onClose={() => setShowWeekly(false)} />
-            )}
+            {showWeekly && <WeeklySummaryModal onClose={() => setShowWeekly(false)} />}
 
             <DailyNotes currentDate={currentDate} />
         </div>

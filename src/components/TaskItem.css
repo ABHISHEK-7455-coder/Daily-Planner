@@ -114,3 +114,38 @@
     color: #ef4444;
     background: #fee;
 }
+
+.task-item-snooze-btn,
+.task-item-move-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 6px;
+}
+
+.task-item-move {
+    position: relative;
+}
+
+.task-item-move-options {
+    position: absolute;
+    right: 0;
+    top: 28px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.task-item-move-option-btn {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    text-transform: capitalize;
+}
+

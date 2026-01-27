@@ -1,3 +1,4 @@
+import React from "react";
 import { useState } from "react";
 import "./TaskItem.css";
 
@@ -11,6 +12,8 @@ export default function TaskItem({
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(task.title);
+
+    const [showMoveOptions, setShowMoveOptions] = useState(false);
 
     const sections = ["morning", "afternoon", "evening"]
         .filter(s => s !== task.timeOfDay);
@@ -45,8 +48,11 @@ export default function TaskItem({
                         >
                             {task.title}
                         </span>
-                        {task.time && (
-                            <span className="task-item-time">{task.time}</span>
+
+                        {task.startTime && task.endTime && (
+                            <span className="task-item-time">
+                                {task.startTime} – {task.endTime}
+                            </span>
                         )}
                     </div>
                 )}
@@ -54,6 +60,43 @@ export default function TaskItem({
 
             {/* RIGHT ACTIONS */}
             <div className="task-item-actions">
+                {/* 🔹 SNOOZE */}
+                <button
+                    className="task-item-snooze-btn"
+                    onClick={() => onSnooze(task.id)}
+                    title="Snooze (move to tomorrow)"
+                >
+                    💤
+                </button>
+
+                {/* 🔹 MOVE */}
+                <div className="task-item-move">
+                    <button
+                        className="task-item-move-btn"
+                        onClick={() => setShowMoveOptions(prev => !prev)}
+                        title="Move to another section"
+                    >
+                        ↔️
+                    </button>
+
+                    {showMoveOptions && (
+                        <div className="task-item-move-options">
+                            {sections.map(sec => (
+                                <button
+                                    key={sec}
+                                    className="task-item-move-option-btn"
+                                    onClick={() => {
+                                        onMove(task.id, sec);
+                                        setShowMoveOptions(false);
+                                    }}
+                                >
+                                    {sec}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 {/* 🔹 Delete */}
                 <button className="task-item-delete-btn" onClick={() => onDelete(task.id)}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
