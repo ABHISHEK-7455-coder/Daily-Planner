@@ -1,0 +1,51 @@
+.day-calendar {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    height: 1440px; /* 24h * 60px */
+    position: relative;
+    border-top: 1px solid #e5e7eb;
+}
+
+.day-calendar-time {
+    border-right: 1px solid #e5e7eb;
+}
+
+.day-calendar-hour {
+    height: 60px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #6b7280;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.day-calendar-events {
+    position: relative;
+}
+
+.day-calendar-hour-slot {
+    height: 60px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.calendar-task {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    background: #2563eb;
+    color: white;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.calendar-task-done {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+.calendar-task-time {
+    font-size: 11px;
+    opacity: 0.9;
+}
