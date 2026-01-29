@@ -12,7 +12,7 @@ import DailyNotes from "../components/DailyNotes";
 
 import PushNotifications from "../components/PushNotifications";
 
-import GentleNotifications from "../components/GentleNotifications";
+// import GentleNotifications from "../components/GentleNotifications";
 import DayCalendar from "../components/DayCalendar";
 
 import "./Today.css";

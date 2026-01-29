@@ -10,12 +10,6 @@ const getTimeOfDay = () => {
 
 export default function Sidebar({
   tasks = [],
-<<<<<<< HEAD:frontend/src/components/Sidebar.jsx
-  onScroll,
-  onOpenReflection,
-  onOpenWeeklySummary
-}) {
-=======
   onFilterChange,
   activeFilter,
   onOpenReflection,
@@ -32,7 +26,6 @@ const [showModal, setShowModal] = useState(false);
   const activeTime = getTimeOfDay();
 
 
->>>>>>> 5ee1b07379d13b954cb13addaaf749b7b94d1171:src/components/Sidebar.jsx
   const completed = tasks.filter(t => t.completed).length;
   const pending = tasks.filter(t => !t.completed).length;
   const total = tasks.length;
@@ -146,17 +139,12 @@ const [showModal, setShowModal] = useState(false);
             <span className="sidebar-nav-label">Pending</span>
             <span className="sidebar-nav-badge">{pending}</span>
           </button>
-<<<<<<< HEAD:frontend/src/components/Sidebar.jsx
-          <button className="sidebar-nav-item" onClick={() => onScroll("evening")}>
-            <span className="sidebar-nav-icon">✔</span>
-=======
 
           <button
             className={`sidebar-nav-item ${activeFilter === "completed" ? "sidebar-nav-item-active" : ""}`}
             onClick={() => onFilterChange("completed")}
           >
             <span className="sidebar-nav-icon">✓</span>
->>>>>>> 5ee1b07379d13b954cb13addaaf749b7b94d1171:src/components/Sidebar.jsx
             <span className="sidebar-nav-label">Completed</span>
             <span className="sidebar-nav-badge">{completed}</span>
           </button>
