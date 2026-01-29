@@ -48,10 +48,21 @@ export default function Today() {
     const [showWeekly, setShowWeekly] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const [viewMode, setViewMode] = useState("planner"); // planner | calendar
+    const [taskFilter, setTaskFilter] = useState("all");
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
+
+    // 🔹 FILTER LOGIC (Google Calendar–style)
+    const getFilteredTasks = (timeOfDay) => {
+        return tasks.filter(t => {
+            if (t.timeOfDay !== timeOfDay) return false;
+            if (taskFilter === "pending") return !t.completed;
+            if (taskFilter === "completed") return t.completed;
+            return true;
+        });
+    };
 
     /* 🔄 SYNC URL → STATE */
     useEffect(() => {
@@ -201,10 +212,12 @@ export default function Today() {
 
             <Sidebar
                 tasks={tasks}
-                onScroll={scrollToSection}
+                activeFilter={taskFilter}
+                onFilterChange={setTaskFilter}
                 onOpenReflection={() => setShowReflection(true)}
                 onOpenWeeklySummary={() => setShowWeekly(true)}
             />
+
 
             <main className="today-main">
                 <div className="today-header">
@@ -235,19 +248,20 @@ export default function Today() {
                         <div ref={morningRef}>
                             <TaskSection
                                 title="Morning"
-                                tasks={tasks.filter(t => t.timeOfDay === "morning")}
+                                tasks={getFilteredTasks("morning")}
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}
                                 onReorder={reorderTasks}
                                 selectedDate={dayKey}
+
                             />
                         </div>
 
                         <div ref={afternoonRef}>
                             <TaskSection
                                 title="Afternoon"
-                                tasks={tasks.filter(t => t.timeOfDay === "afternoon")}
+                                tasks={getFilteredTasks("afternoon")}
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}
@@ -259,7 +273,7 @@ export default function Today() {
                         <div ref={eveningRef}>
                             <TaskSection
                                 title="Evening"
-                                tasks={tasks.filter(t => t.timeOfDay === "evening")}
+                                tasks={getFilteredTasks("evening")}
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}

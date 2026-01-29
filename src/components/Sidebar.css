@@ -182,3 +182,50 @@
     font-size: 18px;
     font-weight: 600;
 }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modal-container {
+  background: #fff;
+  width: 420px;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.modal-content {
+  margin-top: 12px;
+}
+
+.modal-section {
+  margin-bottom: 16px;
+}
+
+.modal-section ul {
+  padding-left: 16px;
+}
+
+.empty-text {
+  opacity: 0.6;
+}
+
