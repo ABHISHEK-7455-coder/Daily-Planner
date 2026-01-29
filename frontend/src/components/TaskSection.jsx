@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import TaskItem from "./TaskItem";
 import "./TaskSection.css";
 
@@ -12,10 +12,11 @@ export default function TaskSection({
     onSnooze,
     selectedDate
 }) {
-    if (tasks.length === 0) return null;
+    if (!selectedDate || tasks.length === 0) return null;
 
     const [pov, setPov] = useState("");
 
+    /* ---------- ICON ---------- */
     const getIcon = (title) => {
         if (title === "Morning") return "☀️";
         if (title === "Afternoon") return "🌤️";
@@ -23,24 +24,29 @@ export default function TaskSection({
         return "📝";
     };
 
-    /* ---------- LOAD POV PER DAY ---------- */
+    /* ---------- LOAD POV (PER DAY + SECTION) ---------- */
     useEffect(() => {
         const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
-        setPov(stored?.[selectedDate]?.[title] || "");
+        const value = stored?.[selectedDate]?.[title] || "";
+        setPov(value);
     }, [selectedDate, title]);
 
-    /* ---------- SAVE POV PER DAY ---------- */
-    const handlePOVChange = (e) => {
-        const value = e.target.value;
-        setPov(value);
+    /* ---------- SAVE POV (SAFE & STABLE) ---------- */
+    useEffect(() => {
+        if (!selectedDate) return;
 
         const stored = JSON.parse(localStorage.getItem("dailyPOV")) || {};
-        stored[selectedDate] = stored[selectedDate] || {};
-        stored[selectedDate][title] = value;
+
+        if (!stored[selectedDate]) {
+            stored[selectedDate] = {};
+        }
+
+        stored[selectedDate][title] = pov;
 
         localStorage.setItem("dailyPOV", JSON.stringify(stored));
-    };
+    }, [pov, selectedDate, title]);
 
+    /* ---------- PLACEHOLDER LOGIC ---------- */
     const allCompleted = tasks.every(t => t.completed);
     const someCompleted = tasks.some(t => t.completed);
 
@@ -71,10 +77,11 @@ export default function TaskSection({
                 ))}
             </div>
 
+            {/* ---------- POV TEXTAREA ---------- */}
             <div className="section-pov">
                 <textarea
                     value={pov}
-                    onChange={handlePOVChange}
+                    onChange={(e) => setPov(e.target.value)}
                     placeholder={povPlaceholder}
                 />
             </div>
