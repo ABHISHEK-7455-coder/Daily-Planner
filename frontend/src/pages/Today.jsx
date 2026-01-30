@@ -9,16 +9,12 @@ import ReflectionModal from "../components/ReflectionModal";
 import PendingCarryOverModal from "../components/PendingCarryOverModal";
 import WeeklySummaryModal from "../components/WeeklySummaryModal";
 import DailyNotes from "../components/DailyNotes";
-
 import PushNotifications from "../components/PushNotifications";
-
-// import GentleNotifications from "../components/GentleNotifications";
 import DayCalendar from "../components/DayCalendar";
 
 import "./Today.css";
 
-
-/* 📹 DATE HELPERS */
+/* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
 const addDays = (date, days) => {
     const d = new Date(date);
@@ -26,7 +22,6 @@ const addDays = (date, days) => {
     return d;
 };
 
-/* 📹 DAILY POPUP FLAG */
 const carryPopupKey = (date) =>
     `carry-popup-shown-${formatKey(date)}`;
 
@@ -41,7 +36,6 @@ export default function Today() {
     const [tasks, setTasks] = useState([]);
     const [reflection, setReflection] = useState(null);
 
-    /* 🔹 TIME VIEW MODE */
     const [timeView, setTimeView] = useState(
         localStorage.getItem("time-view") || "sections"
     );
@@ -51,25 +45,23 @@ export default function Today() {
     const [yesterdayTasks, setYesterdayTasks] = useState([]);
     const [showWeekly, setShowWeekly] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
-    const [viewMode, setViewMode] = useState("planner"); // planner | calendar
+    const [viewMode, setViewMode] = useState("planner");
     const [taskFilter, setTaskFilter] = useState("all");
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
     const eveningRef = useRef(null);
 
-    /* 📹 LOAD DAY DATA (SAFE) */
-    // 🔹 FILTER LOGIC (Google Calendar–style)
-    const getFilteredTasks = (timeOfDay) => {
-        return tasks.filter(t => {
+    /* 🔹 FILTER LOGIC */
+    const getFilteredTasks = (timeOfDay) =>
+        tasks.filter(t => {
             if (t.timeOfDay !== timeOfDay) return false;
             if (taskFilter === "pending") return !t.completed;
             if (taskFilter === "completed") return t.completed;
             return true;
         });
-    };
 
-    /* 🔄 SYNC URL → STATE */
+    /* 🔄 SYNC URL */
     useEffect(() => {
         if (!date) return;
         setCurrentDate(new Date(date));
@@ -88,7 +80,6 @@ export default function Today() {
         setIsLoaded(true);
     }, [dayKey]);
 
-    /* 📹 SAVE DAY DATA (PROTECTED) */
     /* 🔹 SAVE DAY DATA */
     useEffect(() => {
         if (!isLoaded) return;
@@ -99,20 +90,16 @@ export default function Today() {
         localStorage.setItem("days-data", JSON.stringify(allDays));
     }, [tasks, reflection, dayKey, isLoaded]);
 
-    /* ✅ CARRY-OVER CHECK (ONCE PER DAY ONLY) */
-    /* ✅ CARRY OVER CHECK */
-    /* 🔹 SAVE TIME VIEW */
     useEffect(() => {
         localStorage.setItem("time-view", timeView);
     }, [timeView]);
 
-    /* ✅ CARRY-OVER CHECK */
+    /* 🔹 CARRY OVER CHECK */
     useEffect(() => {
         const todayKey = formatKey(new Date());
         if (dayKey !== todayKey) return;
 
-        const popupShown = localStorage.getItem(carryPopupKey(new Date()));
-        if (popupShown) return;
+        if (localStorage.getItem(carryPopupKey(new Date()))) return;
 
         const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
         const yesterdayKey = formatKey(addDays(new Date(), -1));
@@ -129,20 +116,16 @@ export default function Today() {
         localStorage.setItem(carryPopupKey(new Date()), "true");
     }, [dayKey]);
 
-    
     /* 🔹 TASK ACTIONS */
     const addTask = (title, timeOfDay, startTime = null, endTime = null) => {
-        setTasks(prev => [
-            {
-                id: Date.now(),
-                title,
-                completed: false,
-                timeOfDay,
-                startTime,
-                endTime
-            },
-            ...prev
-        ]);
+        setTasks(prev => [{
+            id: Date.now(),
+            title,
+            completed: false,
+            timeOfDay,
+            startTime,
+            endTime
+        }, ...prev]);
     };
 
     const toggleTask = (id) => {
@@ -161,51 +144,54 @@ export default function Today() {
         );
     };
 
-    const reorderTasks = (dragId, dropId) => {
+    /* ✅ MOVE → bottom of selected section */
+    const moveTask = (id, newTimeOfDay) => {
         setTasks(prev => {
-            const drag = prev.find(t => t.id === dragId);
-            const drop = prev.find(t => t.id === dropId);
-            if (!drag || !drop || drag.timeOfDay !== drop.timeOfDay) return prev;
+            const task = prev.find(t => t.id === id);
+            if (!task) return prev;
 
-            const section = prev.filter(
-                t => t.timeOfDay === drag.timeOfDay && t.id !== dragId
-            );
-            const others = prev.filter(t => t.timeOfDay !== drag.timeOfDay);
+            const remaining = prev.filter(t => t.id !== id);
 
-            const idx = section.findIndex(t => t.id === dropId);
-            section.splice(idx, 0, drag);
-
-            return [...others, ...section];
+            return [
+                ...remaining,
+                { ...task, timeOfDay: newTimeOfDay }
+            ];
         });
     };
 
-    /* 📹 SIDEBAR SCROLL */
-    /* 🔹 SORT FOR 24-HOUR VIEW */
-    const timelineTasks = [...tasks].sort((a, b) => {
-        if (!a.startTime) return 1;
-        if (!b.startTime) return -1;
-        return a.startTime.localeCompare(b.startTime);
-    });
+    /* ✅ SNOOZE → next day, same bucket */
+    const snoozeTask = (id) => {
+        setTasks(prev => {
+            const task = prev.find(t => t.id === id);
+            if (!task) return prev;
 
-    /* 🔹 DATE NAVIGATION */
+            const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+            const nextDayKey = formatKey(addDays(currentDate, 1));
+
+            const nextDay = allDays[nextDayKey] || { date: nextDayKey, tasks: [] };
+
+            nextDay.tasks.push({
+                ...task,
+                id: Date.now() + Math.random(),
+                completed: false
+            });
+
+            allDays[nextDayKey] = nextDay;
+            localStorage.setItem("days-data", JSON.stringify(allDays));
+
+            return prev.filter(t => t.id !== id);
+        });
+    };
+
     const goToDay = (days) => {
-        const next = addDays(currentDate, days);
-        navigate(`/day/${formatKey(next)}`);
+        navigate(`/day/${formatKey(addDays(currentDate, days))}`);
     };
 
-    /* 🔹 SCROLL */
-    const scrollToSection = (time) => {
-        const map = { morning: morningRef, afternoon: afternoonRef, evening: eveningRef };
-        map[time]?.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    /* 📹 REFLECTION */
     const saveReflection = (data) => {
         setReflection(data);
         setShowReflection(false);
     };
 
-    /* 📋 CARRY-OVER ACCEPT */
     const acceptCarryOver = () => {
         setTasks(prev => [
             ...yesterdayTasks.map(t => ({
@@ -220,9 +206,7 @@ export default function Today() {
 
     return (
         <div className="today-container">
-            {/* 🔔 Push Notifications - minimal banner that shows once */}
             <PushNotifications />
-           
 
             <Sidebar
                 tasks={tasks}
@@ -231,7 +215,6 @@ export default function Today() {
                 onOpenReflection={() => setShowReflection(true)}
                 onOpenWeeklySummary={() => setShowWeekly(true)}
             />
-
 
             <main className="today-main">
                 <div className="today-header">
@@ -247,7 +230,6 @@ export default function Today() {
                         <button onClick={() => setViewMode("planner")}>Planner</button>
                         <button onClick={() => setViewMode("calendar")}>Calendar</button>
                     </div>
-
                 </div>
 
                 <ProgressBar
@@ -266,9 +248,9 @@ export default function Today() {
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}
-                                onReorder={reorderTasks}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
                                 selectedDate={dayKey}
-
                             />
                         </div>
 
@@ -279,7 +261,8 @@ export default function Today() {
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}
-                                onReorder={reorderTasks}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
                                 selectedDate={dayKey}
                             />
                         </div>
@@ -291,7 +274,8 @@ export default function Today() {
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onEdit={editTask}
-                                onReorder={reorderTasks}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
                                 selectedDate={dayKey}
                             />
                         </div>
@@ -302,17 +286,6 @@ export default function Today() {
                         onToggle={toggleTask}
                         onEdit={editTask}
                         onDelete={deleteTask}
-                    />
-                )}
-
-                {timeView === "timeline" && (
-                    <TaskSection
-                        title="Day Timeline"
-                        tasks={timelineTasks}
-                        onToggle={toggleTask}
-                        onDelete={deleteTask}
-                        onEdit={editTask}
-                        selectedDate={dayKey}
                     />
                 )}
             </main>

@@ -12,14 +12,13 @@ export default function TaskItem({
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(task.title);
-
     const [showMoveOptions, setShowMoveOptions] = useState(false);
 
     const sections = ["morning", "afternoon", "evening"]
         .filter(s => s !== task.timeOfDay);
 
     return (
-        <div className={`task-item ${task.completed ? 'task-item-completed' : ''}`}>
+        <div className={`task-item ${task.completed ? "task-item-completed" : ""}`}>
             {/* LEFT */}
             <div className="task-item-left">
                 <input
@@ -42,12 +41,21 @@ export default function TaskItem({
                     />
                 ) : (
                     <div className="task-item-content">
-                        <span
-                            className="task-item-title"
-                            onDoubleClick={() => setIsEditing(true)}
-                        >
-                            {task.title}
-                        </span>
+                        <div className="task-item-title-row">
+                            <span
+                                className="task-item-title"
+                                onDoubleClick={() => setIsEditing(true)}
+                            >
+                                {task.title}
+                            </span>
+
+                            {/* 💤 Snoozed Badge */}
+                            {task.snoozed && !task.completed && (
+                                <span className="task-item-snoozed-badge">
+                                    Snoozed
+                                </span>
+                            )}
+                        </div>
 
                         {task.startTime && task.endTime && (
                             <span className="task-item-time">
@@ -60,7 +68,6 @@ export default function TaskItem({
 
             {/* RIGHT ACTIONS */}
             <div className="task-item-actions">
-                {/* 🔹 SNOOZE */}
                 <button
                     className="task-item-snooze-btn"
                     onClick={() => onSnooze(task.id)}
@@ -69,7 +76,6 @@ export default function TaskItem({
                     💤
                 </button>
 
-                {/* 🔹 MOVE */}
                 <div className="task-item-move">
                     <button
                         className="task-item-move-btn"
@@ -97,10 +103,17 @@ export default function TaskItem({
                     )}
                 </div>
 
-                {/* 🔹 Delete */}
-                <button className="task-item-delete-btn" onClick={() => onDelete(task.id)}>
+                <button
+                    className="task-item-delete-btn"
+                    onClick={() => onDelete(task.id)}
+                >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path
+                            d="M12 4L4 12M4 4L12 12"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                        />
                     </svg>
                 </button>
             </div>
