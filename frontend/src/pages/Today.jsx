@@ -11,6 +11,7 @@ import WeeklySummaryModal from "../components/WeeklySummaryModal";
 import DailyNotes from "../components/DailyNotes";
 import PushNotifications from "../components/PushNotifications";
 import DayCalendar from "../components/DayCalendar";
+import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
 
 import "./Today.css";
 
@@ -47,6 +48,7 @@ export default function Today() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [viewMode, setViewMode] = useState("planner");
     const [taskFilter, setTaskFilter] = useState("all");
+    const [reminderTask, setReminderTask] = useState(null);
 
     const morningRef = useRef(null);
     const afternoonRef = useRef(null);
@@ -60,6 +62,35 @@ export default function Today() {
             if (taskFilter === "completed") return t.completed;
             return true;
         });
+
+    useEffect(() => {
+        if (!tasks.length) return;
+
+        const todayKey = formatKey(currentDate);
+        const shownKey = `first-task-reminder-shown-${todayKey}`;
+
+        if (localStorage.getItem(shownKey)) return;
+
+        const timedTasks = tasks
+            .filter(t => t.startTime)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+        if (!timedTasks.length) return;
+
+        const firstTask = timedTasks[0];
+
+        const [h, m] = firstTask.startTime.split(":");
+        const start = new Date(currentDate);
+        start.setHours(h, m, 0, 0);
+
+        const reminderTime = new Date(start.getTime() - 30 * 60000);
+        const now = new Date();
+
+        if (now >= reminderTime && now < start) {
+            setReminderTask(firstTask);
+            localStorage.setItem(shownKey, "true");
+        }
+    }, [tasks, currentDate]);
 
     /* 🔄 SYNC URL */
     useEffect(() => {
@@ -311,6 +342,14 @@ export default function Today() {
             )}
 
             <DailyNotes currentDate={currentDate} />
+
+            {reminderTask && (
+                <FirstTaskReminderOverlay
+                    task={reminderTask}
+                    onClose={() => setReminderTask(null)}
+                />
+            )}
+
         </div>
     );
 }
