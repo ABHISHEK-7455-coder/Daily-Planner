@@ -28,7 +28,7 @@
 // app.post('/api/subscribe', async (req, res) => {
 //   try {
 //     const { subscription, userId } = req.body;
-    
+
 //     // Store in Supabase
 //     const { data, error } = await supabase
 //       .from('push_subscriptions')
@@ -43,7 +43,7 @@
 //     if (error) throw error;
 
 //     console.log(`✅ New subscription from ${userId}`);
-    
+
 //     res.json({ success: true });
 //   } catch (error) {
 //     console.error('Subscribe error:', error);
@@ -55,7 +55,7 @@
 // app.post('/api/unsubscribe', async (req, res) => {
 //   try {
 //     const { userId } = req.body;
-    
+
 //     const { error } = await supabase
 //       .from('push_subscriptions')
 //       .delete()
@@ -75,7 +75,7 @@
 // app.post('/api/send-test', async (req, res) => {
 //   try {
 //     const { userId } = req.body;
-    
+
 //     const payload = JSON.stringify({
 //       title: '🧪 Test Notification',
 //       body: 'Your notifications are working perfectly!',
@@ -97,7 +97,7 @@
 
 //     await webpush.sendNotification(subs[0].subscription, payload);
 //     console.log('✅ Test notification sent');
-    
+
 //     res.json({ success: true });
 //   } catch (error) {
 //     console.error('Send test error:', error);
@@ -115,16 +115,16 @@
 //     if (error) throw error;
 
 //     const payload = JSON.stringify(notification);
-    
+
 //     console.log(`📢 Sending ${notification.tag} to ${subs.length} users...`);
-    
+
 //     for (let sub of subs) {
 //       try {
 //         await webpush.sendNotification(sub.subscription, payload);
 //         console.log(`✅ Sent to ${sub.user_id}`);
 //       } catch (error) {
 //         console.error(`❌ Failed for ${sub.user_id}:`, error.message);
-        
+
 //         // Remove invalid subscriptions
 //         if (error.statusCode === 410 || error.statusCode === 404) {
 //           await supabase
@@ -185,8 +185,8 @@ const PORT = process.env.PORT || 3001;
 
 // Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
 );
 
 app.use(cors());
@@ -194,125 +194,125 @@ app.use(express.json());
 
 // Configure VAPID
 webpush.setVapidDetails(
-  'mailto:your-email@example.com',
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
+    'mailto:your-email@example.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
 );
 
 // Subscribe endpoint
 app.post('/api/subscribe', async (req, res) => {
-  try {
-    const { subscription, userId } = req.body;
-    
-    // Store in Supabase
-    const { data, error } = await supabase
-      .from('push_subscriptions')
-      .upsert({
-        user_id: userId,
-        subscription: subscription,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
+    try {
+        const { subscription, userId } = req.body;
 
-    if (error) throw error;
+        // Store in Supabase
+        const { data, error } = await supabase
+            .from('push_subscriptions')
+            .upsert({
+                user_id: userId,
+                subscription: subscription,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'user_id'
+            });
 
-    console.log(`✅ New subscription from ${userId}`);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Subscribe error:', error);
-    res.status(500).json({ error: error.message });
-  }
+        if (error) throw error;
+
+        console.log(`✅ New subscription from ${userId}`);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Subscribe error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Unsubscribe endpoint
 app.post('/api/unsubscribe', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .delete()
-      .eq('user_id', userId);
+    try {
+        const { userId } = req.body;
 
-    if (error) throw error;
+        const { error } = await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('user_id', userId);
 
-    console.log(`🗑️ Unsubscribed ${userId}`);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Unsubscribe error:', error);
-    res.status(500).json({ error: error.message });
-  }
+        if (error) throw error;
+
+        console.log(`🗑️ Unsubscribed ${userId}`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Unsubscribe error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Send test notification
 app.post('/api/send-test', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    
-    const payload = JSON.stringify({
-      title: '🧪 Test Notification',
-      body: 'Your notifications are working perfectly!',
-      tag: 'test',
-      url: '/'
-    });
+    try {
+        const { userId } = req.body;
 
-    // Get subscription from Supabase
-    const { data: subs, error } = await supabase
-      .from('push_subscriptions')
-      .select('subscription')
-      .eq('user_id', userId);
+        const payload = JSON.stringify({
+            title: '🧪 Test Notification',
+            body: 'Your notifications are working perfectly!',
+            tag: 'test',
+            url: '/'
+        });
 
-    if (error) throw error;
+        // Get subscription from Supabase
+        const { data: subs, error } = await supabase
+            .from('push_subscriptions')
+            .select('subscription')
+            .eq('user_id', userId);
 
-    if (!subs || subs.length === 0) {
-      return res.status(404).json({ error: 'No subscription found' });
+        if (error) throw error;
+
+        if (!subs || subs.length === 0) {
+            return res.status(404).json({ error: 'No subscription found' });
+        }
+
+        await webpush.sendNotification(subs[0].subscription, payload);
+        console.log('✅ Test notification sent');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Send test error:', error);
+        res.status(500).json({ error: error.message });
     }
-
-    await webpush.sendNotification(subs[0].subscription, payload);
-    console.log('✅ Test notification sent');
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Send test error:', error);
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // Send notification to all users
 async function sendToAllUsers(notification) {
-  try {
-    const { data: subs, error } = await supabase
-      .from('push_subscriptions')
-      .select('*');
-
-    if (error) throw error;
-
-    const payload = JSON.stringify(notification);
-    
-    console.log(`📢 Sending ${notification.tag} to ${subs.length} users...`);
-    
-    for (let sub of subs) {
-      try {
-        await webpush.sendNotification(sub.subscription, payload);
-        console.log(`✅ Sent to ${sub.user_id}`);
-      } catch (error) {
-        console.error(`❌ Failed for ${sub.user_id}:`, error.message);
-        
-        // Remove invalid subscriptions
-        if (error.statusCode === 410 || error.statusCode === 404) {
-          await supabase
+    try {
+        const { data: subs, error } = await supabase
             .from('push_subscriptions')
-            .delete()
-            .eq('user_id', sub.user_id);
-          console.log(`🗑️ Removed invalid subscription: ${sub.user_id}`);
+            .select('*');
+
+        if (error) throw error;
+
+        const payload = JSON.stringify(notification);
+
+        console.log(`📢 Sending ${notification.tag} to ${subs.length} users...`);
+
+        for (let sub of subs) {
+            try {
+                await webpush.sendNotification(sub.subscription, payload);
+                console.log(`✅ Sent to ${sub.user_id}`);
+            } catch (error) {
+                console.error(`❌ Failed for ${sub.user_id}:`, error.message);
+
+                // Remove invalid subscriptions
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                    await supabase
+                        .from('push_subscriptions')
+                        .delete()
+                        .eq('user_id', sub.user_id);
+                    console.log(`🗑️ Removed invalid subscription: ${sub.user_id}`);
+                }
+            }
         }
-      }
+    } catch (error) {
+        console.error('Send to all error:', error);
     }
-  } catch (error) {
-    console.error('Send to all error:', error);
-  }
 }
 
 // ⏰ TESTING SCHEDULE - EVERY MINUTE (for quick testing)
@@ -320,7 +320,7 @@ async function sendToAllUsers(notification) {
 // cron.schedule('* * * * *', () => {
 //   const now = new Date();
 //   console.log(`⏰ Test notification at ${now.toLocaleTimeString()}`);
-  
+
 //   sendToAllUsers({
 //     title: '⏰ Test Reminder',
 //     body: `Notification triggered at ${now.toLocaleTimeString()}`,
@@ -360,37 +360,37 @@ cron.schedule('0 12 * * *', () => {
 
 // Morning notification - 8:00 AM
 cron.schedule('0 8 * * *', () => {
-  sendToAllUsers({
-    title: '☀️ Good Morning!',
-    body: 'Ready to plan your day? Check your tasks.',
-    tag: 'morning',
-    url: '/'
-  });
+    sendToAllUsers({
+        title: '☀️ Good Morning!',
+        body: 'Ready to plan your day? Check your tasks.',
+        tag: 'morning',
+        url: '/'
+    });
 });
 
 // Evening notification - 9:30 PM
 cron.schedule('30 21 * * *', () => {
-  sendToAllUsers({
-    title: '🌙 Evening Check-in',
-    body: 'How did your day go? Review and reflect.',
-    tag: 'evening',
-    url: '/'
-  });
+    sendToAllUsers({
+        title: '🌙 Evening Check-in',
+        body: 'How did your day go? Review and reflect.',
+        tag: 'evening',
+        url: '/'
+    });
 });
 
 // Pending task reminder - 11:30 PM
 cron.schedule('30 23 * * *', () => {
-  sendToAllUsers({
-    title: '⏰ Day Ending Soon',
-    body: 'Don\'t forget to complete your pending tasks!',
-    tag: 'reminder',
-    url: '/'
-  });
+    sendToAllUsers({
+        title: '⏰ Day Ending Soon',
+        body: 'Don\'t forget to complete your pending tasks!',
+        tag: 'reminder',
+        url: '/'
+    });
 });
 
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`⏰ Test notifications will run EVERY MINUTE`);
-  console.log(`📋 Current time: ${new Date().toLocaleTimeString()}`);
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`⏰ Test notifications will run EVERY MINUTE`);
+    console.log(`📋 Current time: ${new Date().toLocaleTimeString()}`);
 });
