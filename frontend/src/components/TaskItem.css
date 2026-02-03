@@ -115,6 +115,7 @@
     background: #fee;
 }
 
+.task-item-ai-btn,
 .task-item-snooze-btn,
 .task-item-move-btn {
     background: transparent;
