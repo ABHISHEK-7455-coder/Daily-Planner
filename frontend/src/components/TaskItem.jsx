@@ -1,5 +1,6 @@
 import React from "react";
 import { useState } from "react";
+import TaskGuideModal from "./TaskGuideModal";
 import "./TaskItem.css";
 
 export default function TaskItem({
@@ -13,6 +14,8 @@ export default function TaskItem({
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(task.title);
     const [showMoveOptions, setShowMoveOptions] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
+
 
     const sections = ["morning", "afternoon", "evening"]
         .filter(s => s !== task.timeOfDay);
@@ -69,6 +72,14 @@ export default function TaskItem({
             {/* RIGHT ACTIONS */}
             <div className="task-item-actions">
                 <button
+                    className="task-item-ai-btn"
+                    title="How to do this?"
+                    onClick={() => setShowGuide(true)}
+                >
+                    💡
+                </button>
+
+                <button
                     className="task-item-snooze-btn"
                     onClick={() => onSnooze(task.id)}
                     title="Snooze (move to tomorrow)"
@@ -117,6 +128,13 @@ export default function TaskItem({
                     </svg>
                 </button>
             </div>
+            {showGuide && (
+                <TaskGuideModal
+                    task={task}
+                    onClose={() => setShowGuide(false)}
+                />
+            )}
+
         </div>
     );
 }
