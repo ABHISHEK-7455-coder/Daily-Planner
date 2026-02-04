@@ -12,8 +12,10 @@ import DailyNotes from "../components/DailyNotes";
 import PushNotifications from "../components/PushNotifications";
 import DayCalendar from "../components/DayCalendar";
 import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
+// import ChatBuddy from "../components/ChatBuddy";
 
 import "./Today.css";
+import ChatBuddy from "../components/Chatbuddy";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -349,6 +351,16 @@ export default function Today() {
                     onClose={() => setReminderTask(null)}
                 />
             )}
+
+            {/* 🔥 CHAT BUDDY */}
+            {/* <ChatBuddy currentDate={dayKey} tasks={tasks} /> */}
+            <ChatBuddy 
+            currentDate={dayKey} 
+            tasks={tasks}
+            onAddTask={addTask}
+            onCompleteTask={toggleTask}
+            onDeleteTask={deleteTask}  // ← Add this!
+            />
 
         </div>
     );
