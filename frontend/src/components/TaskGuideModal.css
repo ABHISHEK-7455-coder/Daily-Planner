@@ -1,7 +1,7 @@
 .task-guide-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -12,13 +12,22 @@
     background: #111;
     color: #fff;
     padding: 24px;
-    width: 90%;
-    max-width: 420px;
+    width: 60%;
+    /* max-width: 520px; */
     border-radius: 12px;
+}
+
+.task-guide-modal button {
+    cursor: pointer;
 }
 
 .task-guide-modal h2 {
     margin-bottom: 6px;
+}
+
+.task-guide-modal-title {
+    text-transform: uppercase;
+    margin-bottom: 10px;
 }
 
 .guide-text {
@@ -28,10 +37,30 @@
     margin-top: 12px;
 }
 
+.guide-step {
+    margin-bottom: 16px;
+}
+
 .loading {
     opacity: 0.7;
 }
 
 .task-guide-modal button {
     margin-top: 16px;
+}
+
+.task-guide-step {
+    margin-bottom: 12px;
+    line-height: 1.6;
+}
+
+.delete-step-btn {
+    border: none;
+    background: none;
+}
+
+.gotit-btn {
+    border-radius: 14px;
+    padding: 4px 16px;
+    border: none;
 }
