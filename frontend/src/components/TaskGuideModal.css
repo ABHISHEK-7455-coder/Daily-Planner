@@ -2,7 +2,6 @@
 
 .task-guide-overlay {
     position: fixed;
-    top: 50;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(10px);
@@ -34,6 +33,7 @@
     max-height: 85vh;
     overflow-y: auto;
     animation: slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
 }
 
 @keyframes slide-up {

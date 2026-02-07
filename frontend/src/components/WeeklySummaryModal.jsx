@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import "./WeeklySummaryModal.css";
 
-/* ---------- helpers ---------- */
-const getWeekDates = (baseDate = new Date()) => {
-    const start = new Date(baseDate);
+/* ---------- DATE HELPERS ---------- */
+const getWeekDatesByOffset = (offset = 0) => {
+    const today = new Date();
+    const base = new Date(today);
+    base.setDate(base.getDate() + offset * 7);
+
+    const start = new Date(base);
     start.setDate(start.getDate() - start.getDay());
 
     return [...Array(7)].map((_, i) => {
@@ -13,73 +17,133 @@ const getWeekDates = (baseDate = new Date()) => {
     });
 };
 
-const getWeekKey = (date = new Date()) => {
-    const firstDay = new Date(date);
-    firstDay.setDate(firstDay.getDate() - firstDay.getDay());
-
-    const year = firstDay.getFullYear();
+const getWeekKeyByOffset = (offset = 0) => {
+    const base = new Date();
+    base.setDate(base.getDate() + offset * 7);
+    const year = base.getFullYear();
     const week = Math.ceil(
-        (((firstDay - new Date(year, 0, 1)) / 86400000) +
+        (((base - new Date(year, 0, 1)) / 86400000) +
             new Date(year, 0, 1).getDay() + 1) / 7
     );
-
     return `${year}-W${week}`;
+};
+
+/* ---------- MOTIVATION ENGINE ---------- */
+const getWeeklyMessage = (current, previous) => {
+    if (current.total === 0) {
+        return {
+            title: "Blank Week 🌱",
+            message:
+                "Looks like this week was light. That’s okay. Next week, try adding just 1–2 meaningful tasks and build momentum slowly."
+        };
+    }
+
+    const rate = current.completed / current.total;
+    const prevRate = previous ? previous.completed / (previous.total || 1) : 0;
+
+    if (rate === 1) {
+        return {
+            title: "You showed up fully 💯",
+            message:
+                "Every planned task got done. That’s rare discipline. Don’t increase load yet — maintain this rhythm next week."
+        };
+    }
+
+    if (rate >= 0.7) {
+        return {
+            title: "Strong consistency 👏",
+            message:
+                "Most tasks are completed. You’re managing your energy well. One small push next week can make this a perfect streak."
+        };
+    }
+
+    if (rate >= 0.4) {
+        return {
+            title: "Progress > perfection 💪",
+            message:
+                "You didn’t quit — and that matters. Try fewer tasks next week, but finish them completely."
+        };
+    }
+
+    if (prevRate && rate > prevRate) {
+        return {
+            title: "Still better than old you 🪞",
+            message:
+                "Completion is low, but it’s improving compared to last week. Keep simplifying — progress is happening."
+        };
+    }
+
+    return {
+        title: "Rough week, not a failure 🌧️",
+        message:
+            "This week was heavy. Don’t judge yourself. Reset with smaller, realistic tasks — consistency beats intensity."
+    };
 };
 
 export default function WeeklySummaryModal({ onClose }) {
     const [view, setView] = useState("completed");
-    const [reflection, setReflection] = useState("");
+    const [weekOffset, setWeekOffset] = useState(0);
     const [activeDate, setActiveDate] = useState(null);
-
-    const weekKey = getWeekKey();
-    const weekDates = getWeekDates();
 
     const daysData =
         JSON.parse(localStorage.getItem("days-data")) || {};
 
-    /* 🔹 LOAD WEEKLY REFLECTION */
-    useEffect(() => {
-        const stored =
-            JSON.parse(localStorage.getItem("weekly-reflections")) || {};
+    const weekDates = useMemo(
+        () => getWeekDatesByOffset(weekOffset),
+        [weekOffset]
+    );
 
-        if (stored[weekKey]) {
-            setReflection(stored[weekKey].reflection || "");
-        }
-    }, [weekKey]);
+    const weekKey = useMemo(
+        () => getWeekKeyByOffset(weekOffset),
+        [weekOffset]
+    );
 
-    /* 🔹 SAVE WEEKLY REFLECTION */
-    useEffect(() => {
-        const all =
-            JSON.parse(localStorage.getItem("weekly-reflections")) || {};
+    const prevWeekDates = getWeekDatesByOffset(weekOffset - 1);
 
-        all[weekKey] = {
-            reflection,
-            updatedAt: new Date().toISOString()
-        };
-
-        localStorage.setItem(
-            "weekly-reflections",
-            JSON.stringify(all)
-        );
-    }, [reflection, weekKey]);
-
-    const summary = useMemo(() => {
-        const completed = {};
-        const pending = {};
-        const stats = {};
+    /* ---------- WEEK STATS (REAL-TIME) ---------- */
+    const weekStats = useMemo(() => {
+        let total = 0;
+        let completed = 0;
 
         weekDates.forEach(date => {
             const day = daysData[date];
-            if (!day || !day.tasks) return;
+            if (!day?.tasks) return;
 
-            const total = day.tasks.length;
-            const done = day.tasks.filter(t => t.completed).length;
+            total += day.tasks.length;
+            completed += day.tasks.filter(t => t.completed).length;
+        });
 
-            stats[date] = {
-                total,
-                done,
-                percent: total === 0 ? 0 : Math.round((done / total) * 100)
-            };
+        return { total, completed };
+    }, [daysData, weekDates]);
+
+    const prevWeekStats = useMemo(() => {
+        let total = 0;
+        let completed = 0;
+
+        prevWeekDates.forEach(date => {
+            const day = daysData[date];
+            if (!day?.tasks) return;
+
+            total += day.tasks.length;
+            completed += day.tasks.filter(t => t.completed).length;
+        });
+
+        return { total, completed };
+    }, [daysData, prevWeekDates]);
+
+    const motivation = useMemo(
+        () => getWeeklyMessage(weekStats, prevWeekStats),
+        [weekStats, prevWeekStats]
+    );
+
+    /* ---------- DAY-WISE TASKS ---------- */
+    const dayBuckets = useMemo(() => {
+        const completed = {};
+        const pending = {};
+
+        weekDates.forEach(date => {
+            const day = daysData[date];
+            if (!day?.tasks) return;
 
             day.tasks.forEach(task => {
                 const bucket = task.completed ? completed : pending;
@@ -88,37 +152,58 @@ export default function WeeklySummaryModal({ onClose }) {
             });
         });
 
-        return { completed, pending, stats };
+        return { completed, pending };
     }, [daysData, weekDates]);
 
-    /* 🔹 DEFAULT ACTIVE DAY (ONLY ONCE) */
     useEffect(() => {
-        if (activeDate) return;
-
-        const availableDates = Object.keys(summary.stats);
-        if (availableDates.length) {
-            setActiveDate(availableDates[0]);
+        if (!activeDate && weekDates.length) {
+            setActiveDate(weekDates[0]);
         }
-    }, [summary, activeDate]);
+    }, [weekDates, activeDate]);
 
-    const activeData =
-        view === "completed"
-            ? summary.completed
-            : summary.pending;
-
-    const dayTasks = activeDate
-        ? activeData[activeDate] || []
-        : [];
+    const activeTasks =
+        activeDate && dayBuckets[view][activeDate]
+            ? dayBuckets[view][activeDate]
+            : [];
 
     return (
-        <div className="weekly-overlay">
-            <div className="weekly-modal">
+        <div className="weekly-overlay" onClick={onClose}>
+            <div
+                className="weekly-modal"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* ---------- HEADER ---------- */}
                 <header className="weekly-header">
-                    <h2>Weekly Overview</h2>
-                    <button onClick={onClose}>✕</button>
+                    <button onClick={() => setWeekOffset(w => w - 1)}>←</button>
+
+                    <h2>
+                        {weekOffset === 0
+                            ? "This Week"
+                            : weekOffset === -1
+                            ? "Last Week"
+                            : `${Math.abs(weekOffset)} Weeks Ago`}
+                    </h2>
+
+                    <div className="header-actions">
+                        <button
+                            disabled={weekOffset === 0}
+                            onClick={() => setWeekOffset(w => w + 1)}
+                        >
+                            →
+                        </button>
+                        <button className="close-btn" onClick={onClose}>
+                            ✕
+                        </button>
+                    </div>
                 </header>
 
-                {/* 🔘 TOGGLE (DAY PRESERVED) */}
+                {/* ---------- YOU VS OLD YOU ---------- */}
+                <div className="weekly-motivation">
+                    <h3>{motivation.title}</h3>
+                    <p>{motivation.message}</p>
+                </div>
+
+                {/* ---------- TOGGLE ---------- */}
                 <div className="weekly-toggle">
                     <button
                         className={view === "completed" ? "active" : ""}
@@ -134,62 +219,37 @@ export default function WeeklySummaryModal({ onClose }) {
                     </button>
                 </div>
 
-                {/* 📊 DAYS (CLICKABLE) */}
+                {/* ---------- DAYS ---------- */}
                 <div className="weekly-stats">
-                    {weekDates.map(date => {
-                        const stat = summary.stats[date];
-                        if (!stat) return null;
-
-                        return (
-                            <div
-                                key={date}
-                                className={`day-stat ${activeDate === date ? "active" : ""}`}
-                                onClick={() => setActiveDate(date)}
-                            >
-                                <span className="day">
-                                    {new Date(date).toLocaleDateString("en-US", {
-                                        weekday: "short"
-                                    })}
-                                </span>
-                                <span className="percent">
-                                    {stat.percent}%
-                                </span>
-                            </div>
-                        );
-                    })}
+                    {weekDates.map(date => (
+                        <div
+                            key={date}
+                            className={`day-stat ${activeDate === date ? "active" : ""}`}
+                            onClick={() => setActiveDate(date)}
+                        >
+                            {new Date(date).toLocaleDateString("en-US", {
+                                weekday: "short"
+                            })}
+                        </div>
+                    ))}
                 </div>
 
-                {/* 📋 TASK LIST (SAME DAY, DIFFERENT VIEW) */}
+                {/* ---------- TASK LIST ---------- */}
                 <div className="weekly-list">
-                    {dayTasks.length === 0 ? (
+                    {activeTasks.length === 0 ? (
                         <p className="empty">
                             No {view} tasks for this day
                         </p>
                     ) : (
-                        <div className="weekly-day">
-                            <h4>{new Date(activeDate).toDateString()}</h4>
-                            <ul>
-                                {dayTasks.map(task => (
-                                    <li key={task.id}>
-                                        <strong>{task.timeOfDay}</strong>{" "}
-                                        {task.title}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+                        <ul>
+                            {activeTasks.map(task => (
+                                <li key={task.id}>
+                                    <strong>{task.timeOfDay}</strong>{" "}
+                                    {task.title}
+                                </li>
+                            ))}
+                        </ul>
                     )}
-                </div>
-
-                {/* 🧠 WEEKLY REFLECTION */}
-                <div className="weekly-reflection">
-                    <label>
-                        What stopped you this week?
-                    </label>
-                    <textarea
-                        placeholder="Be honest. This is for you only."
-                        value={reflection}
-                        onChange={e => setReflection(e.target.value)}
-                    />
                 </div>
             </div>
         </div>
