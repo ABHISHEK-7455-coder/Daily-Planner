@@ -1,0 +1,165 @@
+/* 🔁 DAILYROUTINEMODAL.CSS - Cozy Desk Style */
+/* Note: This component reuses .modal-overlay and .modal from PendingCarryOverModal */
+
+.routine-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.routine-item:hover {
+    transform: translateX(4px);
+    border-color: #c9e3ff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.routine-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #c9ffd4;
+    flex-shrink: 0;
+}
+
+.routine-item span {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+    color: #2d2d2d;
+}
+
+.routine-item small {
+    font-size: 12px;
+    color: #999999;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 4px 10px;
+    border-radius: 10px;
+    text-transform: capitalize;
+    font-weight: 600;
+}
+
+.routine-item button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: #ffe8ed;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.routine-item button:hover {
+    background: #ffc9d4;
+    transform: scale(1.1);
+}
+
+/* Add New Item */
+.routine-add {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid #f5f5f7;
+    flex-wrap: wrap;
+}
+
+.routine-add input {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px 16px;
+    border: 2px solid #f5f5f7;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    background: #f5f5f7;
+    transition: all 0.2s ease;
+}
+
+.routine-add input:focus {
+    outline: none;
+    border-color: #ddc9ff;
+    background: #ffffff;
+}
+
+.routine-add select {
+    padding: 12px 14px;
+    border: 2px solid #f5f5f7;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    background: #ffffff;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.routine-add button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+    color: #2d2d2d;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 12px rgba(201, 255, 212, 0.3);
+}
+
+.routine-add button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(201, 255, 212, 0.4);
+}
+
+/* Close Button */
+.modal-close {
+    width: 100%;
+    margin-top: 24px;
+    padding: 14px;
+    border: none;
+    border-radius: 14px;
+    background: #f5f5f7;
+    color: #666666;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: #ffe8ed;
+    color: #2d2d2d;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .routine-item {
+        padding: 12px 16px;
+        gap: 10px;
+    }
+
+    .routine-item span {
+        font-size: 14px;
+    }
+
+    .routine-add {
+        flex-direction: column;
+    }
+
+    .routine-add input,
+    .routine-add select,
+    .routine-add button {
+        width: 100%;
+    }
+}

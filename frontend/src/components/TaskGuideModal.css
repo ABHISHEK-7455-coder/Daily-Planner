@@ -1,66 +1,267 @@
+/* 💡 TASKGUIDEMODAL.CSS - Cozy Desk Style */
+
 .task-guide-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
+    animation: fade-in 0.2s ease;
+    padding: 20px;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .task-guide-modal {
-    background: #111;
-    color: #fff;
-    padding: 24px;
-    width: 60%;
-    /* max-width: 520px; */
-    border-radius: 12px;
+    background: #ffffff;
+    padding: 36px;
+    border-radius: 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    max-width: 600px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.task-guide-modal button {
-    cursor: pointer;
+@keyframes slide-up {
+    from {
+        transform: translateY(40px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .task-guide-modal h2 {
-    margin-bottom: 6px;
+    font-family: 'Comfortaa', cursive;
+    font-size: 24px;
+    font-weight: 700;
+    color: #2d2d2d;
+    margin-bottom: 12px;
+    text-align: center;
+    letter-spacing: -0.3px;
 }
 
 .task-guide-modal-title {
-    text-transform: uppercase;
-    margin-bottom: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #666666;
+    margin-bottom: 28px;
+    text-align: center;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #ffe8ed 0%, #fff4c9 100%);
+    border-radius: 16px;
 }
 
-.guide-text {
-    white-space: pre-wrap;
-    font-size: 14px;
-    line-height: 1.6;
-    margin-top: 12px;
+/* Loading State */
+.loading {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 16px;
+    color: #999999;
+    font-style: italic;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Guide Steps */
+.guide-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 28px;
 }
 
 .guide-step {
-    margin-bottom: 16px;
+    background: linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%);
+    padding: 20px;
+    border-radius: 20px;
+    border-left: 4px solid #c9e3ff;
+    transition: all 0.3s ease;
+    animation: step-appear 0.4s ease;
 }
 
-.loading {
-    opacity: 0.7;
+@keyframes step-appear {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
-.task-guide-modal button {
-    margin-top: 16px;
+.guide-step:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    border-left-color: #ffc9d4;
 }
 
-.task-guide-step {
-    margin-bottom: 12px;
-    line-height: 1.6;
+.guide-step:nth-child(1) {
+    border-left-color: #c9ffd4;
 }
 
+.guide-step:nth-child(2) {
+    border-left-color: #c9e3ff;
+}
+
+.guide-step:nth-child(3) {
+    border-left-color: #fff4c9;
+}
+
+.guide-step:nth-child(4) {
+    border-left-color: #ddc9ff;
+}
+
+.guide-step:nth-child(5) {
+    border-left-color: #ffc9d4;
+}
+
+/* Step Header */
+.guide-step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    gap: 12px;
+}
+
+.guide-step-header strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: #2d2d2d;
+    line-height: 1.5;
+    flex: 1;
+}
+
+/* Delete Button */
 .delete-step-btn {
+    background: transparent;
     border: none;
-    background: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
+.delete-step-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+/* Step Description */
+.guide-step-desc {
+    font-size: 14px;
+    color: #666666;
+    line-height: 1.7;
+    margin: 0;
+}
+
+/* Got It Button */
 .gotit-btn {
-    border-radius: 14px;
-    padding: 4px 16px;
+    width: 100%;
+    padding: 16px;
     border: none;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+    color: #2d2d2d;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px rgba(201, 255, 212, 0.3);
+}
+
+.gotit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(201, 255, 212, 0.4);
+}
+
+.gotit-btn:active {
+    transform: scale(0.95);
+}
+
+/* Scrollbar */
+.task-guide-modal::-webkit-scrollbar {
+    width: 8px;
+}
+
+.task-guide-modal::-webkit-scrollbar-track {
+    background: #f5f5f7;
+    border-radius: 10px;
+}
+
+.task-guide-modal::-webkit-scrollbar-thumb {
+    background: #c9e3ff;
+    border-radius: 10px;
+}
+
+.task-guide-modal::-webkit-scrollbar-thumb:hover {
+    background: #ffc9d4;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .task-guide-modal {
+        padding: 28px 20px;
+        border-radius: 24px;
+    }
+
+    .task-guide-modal h2 {
+        font-size: 20px;
+    }
+
+    .task-guide-modal-title {
+        font-size: 16px;
+        padding: 12px 16px;
+    }
+
+    .guide-step {
+        padding: 16px;
+    }
+
+    .guide-step-header strong {
+        font-size: 14px;
+    }
+
+    .guide-step-desc {
+        font-size: 13px;
+    }
+
+    .gotit-btn {
+        padding: 14px;
+        font-size: 15px;
+    }
 }

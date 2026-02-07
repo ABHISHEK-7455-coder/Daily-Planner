@@ -1,167 +1,304 @@
+/* ✅ TASKITEM.CSS - Cozy Desk Style */
+
+/* Note: Main task item styling is in CozyDesk.css */
+/* This file contains additional TaskItem-specific styles */
+
 .task-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.task-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #ffc9d4 0%, #ddc9ff 100%);
+  border-radius: 16px 0 0 16px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .task-item:hover {
-    border-color: #d1d5db;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: var(--bg-card, #ffffff);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border-color: #ffc9d4;
+  transform: translateX(4px);
+}
+
+.task-item:hover::before {
+  opacity: 1;
 }
 
 .task-item-completed {
-    opacity: 0.6;
+  opacity: 0.5;
 }
 
+.task-item-completed:hover {
+  opacity: 0.7;
+}
+
+/* Left Section */
 .task-item-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
 }
 
+/* Checkbox - Exactly like image */
 .task-item-checkbox {
-    width: 20px;
-    height: 20px;
-    border: 2px solid #d1d5db;
-    border-radius: 6px;
-    cursor: pointer;
-    appearance: none;
-    position: relative;
-    transition: all 0.2s;
-    flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid #999999;
+  border-radius: 8px;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+
+.task-item-checkbox:hover {
+  border-color: #ddc9ff;
+  transform: scale(1.05);
 }
 
 .task-item-checkbox:checked {
-    background: #3b82f6;
-    border-color: #3b82f6;
+  background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+  border-color: #c9ffd4;
 }
 
 .task-item-checkbox:checked::after {
-    content: '✓';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 12px;
-    font-weight: 600;
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #2d2d2d;
+  font-weight: bold;
+  font-size: 14px;
 }
 
+/* Content */
 .task-item-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-}
-
-.task-item-title {
-    font-size: 15px;
-    color: #1a1a1a;
-    cursor: pointer;
-}
-
-.task-item-completed .task-item-title {
-    text-decoration: line-through;
-    color: #9ca3af;
-}
-
-.task-item-time {
-    font-size: 12px;
-    color: #9ca3af;
-}
-
-.task-item-edit-input {
-    flex: 1;
-    border: 1px solid #3b82f6;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 15px;
-    outline: none;
-}
-
-.task-item-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.task-item:hover .task-item-actions {
-    opacity: 1;
-}
-
-.task-item-delete-btn {
-    background: transparent;
-    border: none;
-    color: #9ca3af;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.2s, background 0.2s;
-}
-
-.task-item-delete-btn:hover {
-    color: #ef4444;
-    background: #fee;
-}
-
-.task-item-ai-btn,
-.task-item-snooze-btn,
-.task-item-move-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0 6px;
-}
-
-.task-item-move {
-    position: relative;
-}
-
-.task-item-move-options {
-    position: absolute;
-    right: 0;
-    top: 28px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.task-item-move-option-btn {
-    background: transparent;
-    border: none;
-    padding: 4px 8px;
-    cursor: pointer;
-    text-transform: capitalize;
+  flex: 1;
+  min-width: 0;
 }
 
 .task-item-title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
+.task-item-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #2d2d2d;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.task-item-completed .task-item-title {
+  text-decoration: line-through;
+  color: #999999;
+}
+
+.task-item-time {
+  font-size: 13px;
+  color: #666666;
+  margin-top: 4px;
+  display: block;
+  font-weight: 500;
+}
+
+/* Snoozed Badge */
 .task-item-snoozed-badge {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: rgba(255, 165, 0, 0.15);
-    color: #d97706;
-    font-weight: 500;
+  background: #fff4c9;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2d2d2d;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
+/* Edit Input */
+.task-item-edit-input {
+  padding: 8px 12px;
+  border: 2px solid #ddc9ff;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+  width: 100%;
+  background: #ffffff;
+  color: #2d2d2d;
+}
+
+.task-item-edit-input:focus {
+  outline: none;
+  border-color: #ffc9d4;
+}
+
+/* Actions */
+.task-item-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+}
+
+.task-item:hover .task-item-actions {
+  opacity: 1;
+}
+
+/* Action Buttons */
+.task-item-ai-btn,
+.task-item-snooze-btn,
+.task-item-move-btn,
+.task-item-delete-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #e8f3ff;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.task-item-ai-btn {
+  background: #fff4c9;
+}
+
+.task-item-ai-btn:hover {
+  background: #ffc9d4;
+  transform: scale(1.1);
+}
+
+.task-item-snooze-btn {
+  background: #f3e8ff;
+}
+
+.task-item-snooze-btn:hover {
+  background: #ddc9ff;
+  transform: scale(1.1);
+}
+
+.task-item-move-btn {
+  background: #e8f3ff;
+}
+
+.task-item-move-btn:hover {
+  background: #c9e3ff;
+  transform: scale(1.1);
+}
+
+.task-item-delete-btn {
+  background: #ffe8ed;
+}
+
+.task-item-delete-btn:hover {
+  background: #ffc9d4;
+  transform: scale(1.1);
+}
+
+.task-item-delete-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Move Dropdown */
+.task-item-move {
+  position: relative;
+}
+
+.task-item-move-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+  min-width: 140px;
+  animation: dropdown-appear 0.2s ease;
+}
+
+@keyframes dropdown-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.task-item-move-option-btn {
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+  color: #2d2d2d;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.task-item-move-option-btn:hover {
+  background: #c9e3ff;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .task-item {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  
+  .task-item-actions {
+    opacity: 1;
+  }
+  
+  .task-item-ai-btn,
+  .task-item-snooze-btn,
+  .task-item-move-btn,
+  .task-item-delete-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  
+  .task-item-title {
+    font-size: 14px;
+  }
+}

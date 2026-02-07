@@ -29,6 +29,7 @@ const getWeekKey = (date = new Date()) => {
 export default function WeeklySummaryModal({ onClose }) {
     const [view, setView] = useState("completed");
     const [reflection, setReflection] = useState("");
+    const [activeDate, setActiveDate] = useState(null);
 
     const weekKey = getWeekKey();
     const weekDates = getWeekDates();
@@ -90,10 +91,24 @@ export default function WeeklySummaryModal({ onClose }) {
         return { completed, pending, stats };
     }, [daysData, weekDates]);
 
+    /* 🔹 DEFAULT ACTIVE DAY (ONLY ONCE) */
+    useEffect(() => {
+        if (activeDate) return;
+
+        const availableDates = Object.keys(summary.stats);
+        if (availableDates.length) {
+            setActiveDate(availableDates[0]);
+        }
+    }, [summary, activeDate]);
+
     const activeData =
         view === "completed"
             ? summary.completed
             : summary.pending;
+
+    const dayTasks = activeDate
+        ? activeData[activeDate] || []
+        : [];
 
     return (
         <div className="weekly-overlay">
@@ -103,7 +118,7 @@ export default function WeeklySummaryModal({ onClose }) {
                     <button onClick={onClose}>✕</button>
                 </header>
 
-                {/* 🔘 TOGGLE */}
+                {/* 🔘 TOGGLE (DAY PRESERVED) */}
                 <div className="weekly-toggle">
                     <button
                         className={view === "completed" ? "active" : ""}
@@ -119,14 +134,18 @@ export default function WeeklySummaryModal({ onClose }) {
                     </button>
                 </div>
 
-                {/* 📊 DAILY STATS */}
+                {/* 📊 DAYS (CLICKABLE) */}
                 <div className="weekly-stats">
                     {weekDates.map(date => {
                         const stat = summary.stats[date];
                         if (!stat) return null;
 
                         return (
-                            <div key={date} className="day-stat">
+                            <div
+                                key={date}
+                                className={`day-stat ${activeDate === date ? "active" : ""}`}
+                                onClick={() => setActiveDate(date)}
+                            >
                                 <span className="day">
                                     {new Date(date).toLocaleDateString("en-US", {
                                         weekday: "short"
@@ -140,19 +159,17 @@ export default function WeeklySummaryModal({ onClose }) {
                     })}
                 </div>
 
-                {/* 📋 TASK LIST */}
+                {/* 📋 TASK LIST (SAME DAY, DIFFERENT VIEW) */}
                 <div className="weekly-list">
-                    {Object.keys(activeData).length === 0 && (
+                    {dayTasks.length === 0 ? (
                         <p className="empty">
-                            No {view} tasks this week
+                            No {view} tasks for this day
                         </p>
-                    )}
-
-                    {Object.entries(activeData).map(([date, tasks]) => (
-                        <div key={date} className="weekly-day">
-                            <h4>{new Date(date).toDateString()}</h4>
+                    ) : (
+                        <div className="weekly-day">
+                            <h4>{new Date(activeDate).toDateString()}</h4>
                             <ul>
-                                {tasks.map(task => (
+                                {dayTasks.map(task => (
                                     <li key={task.id}>
                                         <strong>{task.timeOfDay}</strong>{" "}
                                         {task.title}
@@ -160,7 +177,7 @@ export default function WeeklySummaryModal({ onClose }) {
                                 ))}
                             </ul>
                         </div>
-                    ))}
+                    )}
                 </div>
 
                 {/* 🧠 WEEKLY REFLECTION */}
