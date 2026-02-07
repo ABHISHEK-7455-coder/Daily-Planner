@@ -115,7 +115,7 @@ const [showModal, setShowModal] = useState(false);
           <div className="sidebar-logo">
             <div className="sidebar-logo-icon">📅</div>
             <div className="sidebar-logo-text">
-              <div className="sidebar-logo-title">Daily Planner</div>
+              <div className="sidebar-logo-title">COZY SPACE</div>
               <div className="sidebar-logo-subtitle">Minimalist Edition</div>
             </div>
           </div>

@@ -1,3 +1,5 @@
+/* 📝 TASKSECTION.CSS - Cozy Desk Style */
+
 .task-section {
     margin-bottom: 32px;
 }
@@ -5,46 +7,146 @@
 .task-section-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 16px 0;
+    gap: 12px;
+    font-family: 'Comfortaa', cursive;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #2d2d2d;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f5f5f7;
 }
 
 .task-section-icon {
-    font-size: 18px;
+    font-size: 28px;
+    animation: icon-float 3s ease-in-out infinite;
+}
+
+@keyframes icon-float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-4px);
+    }
 }
 
 .task-section-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
-.task-section-pov textarea {
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    width: 98.5%;
+/* Empty State */
+.task-section-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: #999999;
 }
 
+.task-section-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.task-section-empty-text {
+    font-size: 15px;
+    font-weight: 500;
+    font-style: italic;
+}
+
+/* Section POV (Point of View) */
 .section-pov {
-    margin-top: 12px;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 2px dashed #f5f5f7;
 }
 
 .section-pov textarea {
-    width: 97%;
-    min-height: 70px;
-    padding: 10px;
+    width: 100%;
+    min-height: 100px;
+    padding: 18px 20px;
+    border: 2px solid #f5f5f7;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
+    line-height: 1.6;
     resize: vertical;
-    background: #fafafa;
+    background: #fffaeb;
+    color: #2d2d2d;
+    transition: all 0.3s ease;
 }
 
 .section-pov textarea:focus {
     outline: none;
-    border-color: #6366f1;
-    background: #fff;
+    border-color: #fff4c9;
+    box-shadow: 0 4px 20px rgba(255, 244, 201, 0.3);
+    background: #ffffff;
+}
+
+.section-pov textarea::placeholder {
+    color: #999999;
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* Placeholder variations based on completion state */
+.section-pov textarea[placeholder*="How did"] {
+    background: #c9ffd4;
+    border-color: #c9ffd4;
+}
+
+.section-pov textarea[placeholder*="helped"] {
+    background: #c9e3ff;
+    border-color: #c9e3ff;
+}
+
+.section-pov textarea[placeholder*="hard"] {
+    background: #ffe8ed;
+    border-color: #ffe8ed;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .task-section-title {
+        font-size: 20px;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .task-section-icon {
+        font-size: 24px;
+    }
+
+    .task-section-list {
+        gap: 10px;
+    }
+
+    .section-pov textarea {
+        min-height: 80px;
+        padding: 14px 16px;
+        font-size: 13px;
+    }
+}
+
+/* Animation for section appearance */
+.task-section {
+    animation: section-appear 0.4s ease;
+}
+
+@keyframes section-appear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

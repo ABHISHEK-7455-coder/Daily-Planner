@@ -1,68 +1,267 @@
+/* 📊 REFLECTIONMODAL.CSS - Cozy Desk Style */
+
 .reflection-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     z-index: 1000;
+    animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .reflection-modal {
-    background: #fff;
-    width: 400px;
-    padding: 20px;
-    border-radius: 12px;
+    background: #ffffff;
+    padding: 18px 32px;
+    border-radius: 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    max-width: 540px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@keyframes scale-in {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.reflection-modal h2 {
+    font-family: 'Comfortaa', cursive;
+    font-size: 28px;
+    font-weight: 700;
+    color: #2d2d2d;
+    margin-bottom: 32px;
+    text-align: center;
+    letter-spacing: -0.5px;
+}
+
+/* Field */
 .field {
-    margin-bottom: 16px;
+    margin-bottom: 28px;
 }
 
-label {
+.field label {
     display: block;
+    font-size: 15px;
     font-weight: 600;
-    margin-bottom: 6px;
+    color: #2d2d2d;
+    margin-bottom: 12px;
+}
+
+/* Mood Selector */
+.mood-row {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
 }
 
 .mood-row button {
-    font-size: 22px;
-    margin-right: 6px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    background: #f9fafb;
+    flex: 1;
+    padding: 16px;
+    border: 3px solid #f5f5f7;
+    background: #ffffff;
+    border-radius: 16px;
+    font-size: 32px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mood-row button:hover {
+    transform: scale(1.1);
+    border-color: #c9e3ff;
+}
+
+.mood-row button.active {
+    border-color: #ffc9d4;
+    background: linear-gradient(135deg, #ffe8ed 0%, #fff4c9 100%);
+    transform: scale(1.15);
+    box-shadow: 0 4px 20px rgba(255, 201, 212, 0.3);
+}
+
+/* Energy Slider */
+.field input[type="range"] {
+    width: 100%;
+    height: 10px;
+    border-radius: 20px;
+    background: #f5f5f7;
+    outline: none;
+    -webkit-appearance: none;
     cursor: pointer;
 }
 
-.mood-row .active {
-    background: #c4eff7;
-    color: white;
+.field input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
 }
 
-textarea {
+.field input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.field input[type="range"]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: none;
+}
+
+.energy-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #999999;
+    font-weight: 500;
+}
+
+/* Textarea */
+.field textarea {
     width: 100%;
-    height: 80px;
-    padding: 8px;
+    min-height: 120px;
+    padding: 16px 18px;
+    border: 2px solid #f5f5f7;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    resize: vertical;
+    background: #fffaeb;
+    color: #2d2d2d;
+    transition: all 0.3s ease;
 }
 
+.field textarea:focus {
+    outline: none;
+    border-color: #fff4c9;
+    box-shadow: 0 4px 20px rgba(255, 244, 201, 0.3);
+    background: #ffffff;
+}
+
+.field textarea::placeholder {
+    color: #999999;
+    font-style: italic;
+}
+
+/* Actions */
 .actions {
     display: flex;
-    justify-content: flex-end;
-    gap: 10px;
+    gap: 12px;
+    margin-top: 32px;
 }
 
-.save {
-    background: rgb(0, 76, 255);
-    color: white;
+.actions button {
+    flex: 1;
+    padding: 16px;
     border: none;
-    padding: 8px 14px;
-    border-radius: 6px;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.cancel {
-    background: #e5e7eb;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 6px;
+.actions button.cancel {
+    background: #f5f5f7;
+    color: #666666;
+}
+
+.actions button.cancel:hover {
+    background: #ffe8ed;
+    color: #2d2d2d;
+}
+
+.actions button.save {
+    background: linear-gradient(135deg, #c9ffd4 0%, #c9e3ff 100%);
+    color: #2d2d2d;
+    box-shadow: 0 4px 16px rgba(201, 255, 212, 0.3);
+}
+
+.actions button.save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(201, 255, 212, 0.4);
+}
+
+.actions button:active {
+    transform: scale(0.95);
+}
+
+/* Scrollbar */
+.reflection-modal::-webkit-scrollbar {
+    width: 8px;
+}
+
+.reflection-modal::-webkit-scrollbar-track {
+    background: #f5f5f7;
+    border-radius: 10px;
+}
+
+.reflection-modal::-webkit-scrollbar-thumb {
+    background: #ffc9d4;
+    border-radius: 10px;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .reflection-modal {
+        padding: 32px 24px;
+        border-radius: 24px;
+    }
+
+    .reflection-modal h2 {
+        font-size: 24px;
+    }
+
+    .mood-row {
+        gap: 8px;
+    }
+
+    .mood-row button {
+        padding: 12px;
+        font-size: 28px;
+    }
+
+    .field textarea {
+        min-height: 100px;
+        font-size: 14px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .actions button {
+        width: 100%;
+    }
 }
