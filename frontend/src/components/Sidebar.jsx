@@ -1,4 +1,5 @@
-import React, {useState, useEffect} from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Sidebar.css";
 
 const getTimeOfDay = () => {
@@ -15,7 +16,7 @@ export default function Sidebar({
   onOpenReflection,
   onOpenWeeklySummary
 }) {
-const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [dailyTasks, setDailyTasks] = useState([]);
   const [hobbies, setHobbies] = useState([]);
   const [taskInput, setTaskInput] = useState("");
@@ -24,13 +25,13 @@ const [showModal, setShowModal] = useState(false);
 
   const todayKey = new Date().toISOString().split("T")[0];
   const activeTime = getTimeOfDay();
-
+  const navigate = useNavigate();
 
   const completed = tasks.filter(t => t.completed).length;
   const pending = tasks.filter(t => !t.completed).length;
   const total = tasks.length;
 
-    /* 🔁 AUTO OPEN ONCE PER DAY */
+  /* 🔁 AUTO OPEN ONCE PER DAY */
   useEffect(() => {
     const lastOpened = localStorage.getItem("daily-modal-opened");
     if (lastOpened !== todayKey) {
@@ -93,9 +94,8 @@ const [showModal, setShowModal] = useState(false);
     items.map(item => (
       <div
         key={item.id}
-        className={`daily-item ${item.done ? "done" : ""} ${
-          item.time === activeTime ? "active-time" : ""
-        }`}
+        className={`daily-item ${item.done ? "done" : ""} ${item.time === activeTime ? "active-time" : ""
+          }`}
       >
         <input
           type="checkbox"
@@ -109,68 +109,75 @@ const [showModal, setShowModal] = useState(false);
 
   return (
     <>
-    <aside className="sidebar-container">
-      <div className="sidebar-content">
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">📅</div>
-            <div className="sidebar-logo-text">
-              <div className="sidebar-logo-title">COZY SPACE</div>
-              <div className="sidebar-logo-subtitle">Minimalist Edition</div>
+      <aside className="sidebar-container">
+        <div className="sidebar-content">
+          <div className="sidebar-header">
+            <div className="sidebar-logo">
+              <div className="sidebar-logo-icon">📅</div>
+              <div className="sidebar-logo-text">
+                <div
+                  className="sidebar-logo-title"
+                  onClick={() => navigate("/")}
+                  style={{ cursor: "pointer" }}
+                >
+                  COZY SPACE
+                </div>
+
+                <div className="sidebar-logo-subtitle">Minimalist Edition</div>
+              </div>
             </div>
           </div>
+
+          <nav className="sidebar-nav">
+            <button
+              className={`sidebar-nav-item ${activeFilter === "all" ? "sidebar-nav-item-active" : ""}`}
+              onClick={() => onFilterChange("all")}
+            >
+              <span className="sidebar-nav-icon">📋</span>
+              <span className="sidebar-nav-label">All Tasks</span>
+              <span className="sidebar-nav-badge">{total}</span>
+            </button>
+
+            <button
+              className={`sidebar-nav-item ${activeFilter === "pending" ? "sidebar-nav-item-active" : ""}`}
+              onClick={() => onFilterChange("pending")}
+            >
+              <span className="sidebar-nav-icon">⏳</span>
+              <span className="sidebar-nav-label">Pending</span>
+              <span className="sidebar-nav-badge">{pending}</span>
+            </button>
+
+            <button
+              className={`sidebar-nav-item ${activeFilter === "completed" ? "sidebar-nav-item-active" : ""}`}
+              onClick={() => onFilterChange("completed")}
+            >
+              <span className="sidebar-nav-icon">✓</span>
+              <span className="sidebar-nav-label">Completed</span>
+              <span className="sidebar-nav-badge">{completed}</span>
+            </button>
+
+            {/* <button
+              className="sidebar-nav-item"
+              onClick={() => setShowModal(true)}
+            >
+              <span className="sidebar-nav-icon">🔁</span>
+              <span className="sidebar-nav-label">Daily Tasks & Hobbies</span>
+            </button> */}
+
+            <button className="sidebar-nav-item" onClick={onOpenReflection}>
+              <span className="sidebar-nav-icon">📊</span>
+              <span className="sidebar-nav-label">Overview</span>
+            </button>
+
+            <button className="sidebar-nav-item" onClick={onOpenWeeklySummary}>
+              <span className="sidebar-nav-icon">📈</span>
+              <span className="sidebar-nav-label">Weekly Summary</span>
+            </button>
+          </nav>
         </div>
+      </aside>
 
-        <nav className="sidebar-nav">
-          <button
-            className={`sidebar-nav-item ${activeFilter === "all" ? "sidebar-nav-item-active" : ""}`}
-            onClick={() => onFilterChange("all")}
-          >
-            <span className="sidebar-nav-icon">📋</span>
-            <span className="sidebar-nav-label">All Tasks</span>
-            <span className="sidebar-nav-badge">{total}</span>
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeFilter === "pending" ? "sidebar-nav-item-active" : ""}`}
-            onClick={() => onFilterChange("pending")}
-          >
-            <span className="sidebar-nav-icon">⏳</span>
-            <span className="sidebar-nav-label">Pending</span>
-            <span className="sidebar-nav-badge">{pending}</span>
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeFilter === "completed" ? "sidebar-nav-item-active" : ""}`}
-            onClick={() => onFilterChange("completed")}
-          >
-            <span className="sidebar-nav-icon">✓</span>
-            <span className="sidebar-nav-label">Completed</span>
-            <span className="sidebar-nav-badge">{completed}</span>
-          </button>
-
-          <button
-            className="sidebar-nav-item"
-            onClick={() => setShowModal(true)}
-          >
-            <span className="sidebar-nav-icon">🔁</span>
-            <span className="sidebar-nav-label">Daily Tasks & Hobbies</span>
-          </button>
-
-          <button className="sidebar-nav-item" onClick={onOpenReflection}>
-            <span className="sidebar-nav-icon">📊</span>
-            <span className="sidebar-nav-label">Overview</span>
-          </button>
-
-          <button className="sidebar-nav-item" onClick={onOpenWeeklySummary}>
-            <span className="sidebar-nav-icon">📈</span>
-            <span className="sidebar-nav-label">Weekly Summary</span>
-          </button>
-        </nav>
-      </div>
-    </aside>
-
-    {/* ================= MODAL ================= */ }
+      {/* ================= MODAL ================= */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-container">
