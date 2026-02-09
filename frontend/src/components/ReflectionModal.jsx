@@ -3,7 +3,7 @@ import "./ReflectionModal.css";
 
 export default function ReflectionModal({ existing, onSave, onClose }) {
   const [mood, setMood] = useState(existing?.mood || "😊");
-  const [energy, setEnergy] = useState(existing?.energy || 3);
+  const [energy, setEnergy] = useState(existing?.energy || 6);
   const [note, setNote] = useState(existing?.note || "");
 
   const handleSave = () => {
@@ -42,7 +42,7 @@ export default function ReflectionModal({ existing, onSave, onClose }) {
           <input
             type="range"
             min="1"
-            max="5"
+            max="100"
             value={energy}
             onChange={(e) => setEnergy(Number(e.target.value))}
           />
