@@ -1,14 +1,14 @@
 import React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useImperativeHandle, forwardRef, useRef } from "react";
 import "./DailyNotes.css";
 
 const getDateKey = (date) =>
     date.toISOString().slice(0, 10);
 
-export default function DailyNotes({ currentDate }) {
+const DailyNotes = forwardRef(({ currentDate }, ref) => {
     const dayKey = getDateKey(currentDate);
     const [note, setNote] = useState("");
-    
+
     /* 🎯 DRAGGABLE STATE */
     const [position, setPosition] = useState({ x: null, y: null });
     const [isDragging, setIsDragging] = useState(false);
@@ -26,8 +26,12 @@ export default function DailyNotes({ currentDate }) {
     useEffect(() => {
         const savedPos = localStorage.getItem("daily-notes-position");
         if (savedPos) {
-            const pos = JSON.parse(savedPos);
-            setPosition(pos);
+            try {
+                const pos = JSON.parse(savedPos);
+                setPosition(pos);
+            } catch (e) {
+                console.error("Failed to parse position:", e);
+            }
         }
     }, []);
 
@@ -44,30 +48,59 @@ export default function DailyNotes({ currentDate }) {
         );
     };
 
+    // ═══════════════════════════════════════════════════════════
+    // VOICE UPDATE METHOD - Called by Advanced Buddy
+    // ═══════════════════════════════════════════════════════════
+    const updateFromVoice = (content, mode = 'append') => {
+        const raw = localStorage.getItem("daily-notes");
+        const allNotes = raw ? JSON.parse(raw) : {};
+
+        if (mode === 'append') {
+            const existingNote = allNotes[dayKey] || "";
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const newNote = existingNote
+                ? `${existingNote}\n\n[${timestamp}] ${content}`
+                : `[${timestamp}] ${content}`;
+            allNotes[dayKey] = newNote;
+            setNote(newNote);
+        } else {
+            allNotes[dayKey] = content;
+            setNote(content);
+        }
+
+        localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+    };
+
     /* 🎯 DRAG HANDLERS */
     const handleMouseDown = (e) => {
-        // Don't drag if clicking on textarea
-        if (e.target.tagName === 'TEXTAREA') return;
-        
+        // Don't drag if clicking on textarea or hint text
+        if (e.target.tagName === 'TEXTAREA' || e.target.classList.contains('daily-notes-hint')) {
+            return;
+        }
+
         setIsDragging(true);
-        
+
         const rect = noteRef.current.getBoundingClientRect();
         setDragOffset({
             x: e.clientX - rect.left,
             y: e.clientY - rect.top
         });
+
+        // Prevent text selection while dragging
+        e.preventDefault();
     };
 
     const handleMouseMove = (e) => {
-        if (!isDragging) return;
+        if (!isDragging || !noteRef.current) return;
 
         const newX = e.clientX - dragOffset.x;
         const newY = e.clientY - dragOffset.y;
 
-        // Keep within viewport bounds
+        // Get viewport and element dimensions
         const maxX = window.innerWidth - noteRef.current.offsetWidth;
         const maxY = window.innerHeight - noteRef.current.offsetHeight;
 
+        // Keep within viewport bounds
         const boundedX = Math.max(0, Math.min(newX, maxX));
         const boundedY = Math.max(0, Math.min(newY, maxY));
 
@@ -78,25 +111,27 @@ export default function DailyNotes({ currentDate }) {
         if (isDragging) {
             setIsDragging(false);
             // Save position to localStorage
-            localStorage.setItem(
-                "daily-notes-position",
-                JSON.stringify(position)
-            );
+            if (position.x !== null && position.y !== null) {
+                localStorage.setItem(
+                    "daily-notes-position",
+                    JSON.stringify(position)
+                );
+            }
         }
     };
 
-    /* 🔹 ATTACH GLOBAL LISTENERS */
+    /* 🔹 ATTACH GLOBAL LISTENERS FOR DRAGGING */
     useEffect(() => {
         if (isDragging) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
-            
+
             return () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
             };
         }
-    }, [isDragging, dragOffset]);
+    }, [isDragging, dragOffset, position]);
 
     /* 🎯 INLINE STYLE FOR POSITION */
     const positionStyle = position.x !== null && position.y !== null
@@ -109,21 +144,33 @@ export default function DailyNotes({ currentDate }) {
         }
         : {};
 
+    // Expose method to parent via ref
+    useImperativeHandle(ref, () => ({
+        updateFromVoice
+    }));
+
     return (
-        <aside 
+        <aside
             ref={noteRef}
             className={`daily-journal ${isDragging ? 'dragging' : ''}`}
             style={positionStyle}
             onMouseDown={handleMouseDown}
         >
             <h3>📝 Daily Notes <span className="drag-hint">✋</span></h3>
+            {/* <p className="daily-notes-hint">
+                ✍️ Type here or 🎤 use voice mode in AI Buddy
+            </p> */}
 
             <textarea
                 value={note}
-                placeholder="Write freely about your day..."
+                placeholder="Write freely about your day... or dictate using your AI Buddy! 🎤"
                 onChange={(e) => setNote(e.target.value)}
                 onBlur={saveNote}
             />
         </aside>
     );
-}
+});
+
+DailyNotes.displayName = 'DailyNotes';
+
+export default DailyNotes;

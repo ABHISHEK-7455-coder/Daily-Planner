@@ -12,8 +12,10 @@ import DailyNotes from "../components/DailyNotes";
 import PushNotifications from "../components/PushNotifications";
 import DayCalendar from "../components/DayCalendar";
 import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
+import AdvancedBuddy from "../components/ChatBuddy";
 
 import "./Today.css";
+import AlarmPlanner from "../components/AlarmPlanner";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -55,6 +57,7 @@ export default function Today() {
   /* 🆕 BUCKET STATE */
   const [activeBucket, setActiveBucket] = useState("morning");
 
+  const dailyNotesRef = useRef(null);
   const prevLoadRef = useRef("calm");
 
   /* 🔹 FILTER LOGIC */
@@ -264,6 +267,12 @@ export default function Today() {
     return "overloaded";
   };
 
+  const handleUpdateNotes = async (content, mode = 'append') => {
+    if (dailyNotesRef.current) {
+      dailyNotesRef.current.updateFromVoice(content, mode);
+    }
+  };
+
   return (
     <div className="today-container">
       <PushNotifications />
@@ -369,6 +378,15 @@ export default function Today() {
       )}
 
       {loadToast && <div className="cognitive-toast">{loadToast}</div>}
+      <AdvancedBuddy
+        currentDate={dayKey}
+        tasks={tasks}
+        onAddTask={addTask}
+        onCompleteTask={toggleTask}
+        onDeleteTask={deleteTask}
+        onUpdateNotes={handleUpdateNotes}
+      />
+      <AlarmPlanner />
     </div>
   );
 }

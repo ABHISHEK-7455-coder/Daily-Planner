@@ -1,0 +1,73 @@
+.planner {
+    padding: 20px;
+    max-width: 500px;
+    margin: auto;
+    font-family: sans-serif;
+}
+
+.form input,
+.form select,
+.form button {
+    margin: 6px;
+    padding: 8px;
+}
+
+.list li {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+}
+
+/* ===== Overlay ===== */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+/* ===== Alarm Modal ===== */
+.alarm-modal {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 280px;
+    text-align: center;
+    animation: pop 0.3s ease;
+}
+
+.alarm-modal h1 {
+    margin-bottom: 10px;
+}
+
+.alarm-modal .time {
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.alarm-modal .label {
+    margin: 10px 0;
+    color: #555;
+}
+
+.actions button {
+    margin: 8px;
+    padding: 10px 14px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+@keyframes pop {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

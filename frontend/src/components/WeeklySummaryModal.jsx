@@ -28,58 +28,6 @@ const getWeekKeyByOffset = (offset = 0) => {
     return `${year}-W${week}`;
 };
 
-/* ---------- MOTIVATION ENGINE ---------- */
-const getWeeklyMessage = (current, previous) => {
-    if (current.total === 0) {
-        return {
-            title: "Blank Week 🌱",
-            message:
-                "Looks like this week was light. That’s okay. Next week, try adding just 1–2 meaningful tasks and build momentum slowly."
-        };
-    }
-
-    const rate = current.completed / current.total;
-    const prevRate = previous ? previous.completed / (previous.total || 1) : 0;
-
-    if (rate === 1) {
-        return {
-            title: "You showed up fully 💯",
-            message:
-                "Every planned task got done. That’s rare discipline. Don’t increase load yet — maintain this rhythm next week."
-        };
-    }
-
-    if (rate >= 0.7) {
-        return {
-            title: "Strong consistency 👏",
-            message:
-                "Most tasks are completed. You’re managing your energy well. One small push next week can make this a perfect streak."
-        };
-    }
-
-    if (rate >= 0.4) {
-        return {
-            title: "Progress > perfection 💪",
-            message:
-                "You didn’t quit — and that matters. Try fewer tasks next week, but finish them completely."
-        };
-    }
-
-    if (prevRate && rate > prevRate) {
-        return {
-            title: "Still better than old you 🪞",
-            message:
-                "Completion is low, but it’s improving compared to last week. Keep simplifying — progress is happening."
-        };
-    }
-
-    return {
-        title: "Rough week, not a failure 🌧️",
-        message:
-            "This week was heavy. Don’t judge yourself. Reset with smaller, realistic tasks — consistency beats intensity."
-    };
-};
-
 export default function WeeklySummaryModal({ onClose }) {
     const [view, setView] = useState("completed");
     const [weekOffset, setWeekOffset] = useState(0);
@@ -98,45 +46,64 @@ export default function WeeklySummaryModal({ onClose }) {
         [weekOffset]
     );
 
-    const prevWeekDates = getWeekDatesByOffset(weekOffset - 1);
-
-    /* ---------- WEEK STATS (REAL-TIME) ---------- */
-    const weekStats = useMemo(() => {
-        let total = 0;
-        let completed = 0;
+    /* ---------- STEP 1: WEEK BEHAVIOR SNAPSHOT ---------- */
+    const behaviorSnapshot = useMemo(() => {
+        let totalTasks = 0;
+        let completedTasks = 0;
+        let activeDays = 0;
+        let morning = 0;
+        let evening = 0;
 
         weekDates.forEach(date => {
             const day = daysData[date];
-            if (!day?.tasks) return;
+            if (!day?.tasks || day.tasks.length === 0) return;
 
-            total += day.tasks.length;
-            completed += day.tasks.filter(t => t.completed).length;
+            activeDays += 1;
+            totalTasks += day.tasks.length;
+
+            day.tasks.forEach(task => {
+                if (task.completed) completedTasks += 1;
+
+                if (task.timeOfDay === "morning") morning += 1;
+                if (task.timeOfDay === "evening") evening += 1;
+            });
         });
 
-        return { total, completed };
-    }, [daysData, weekDates]);
+        const skippedDays = 7 - activeDays;
+        const dominantTime =
+            morning > evening ? "morning" :
+                evening > morning ? "evening" :
+                    null;
 
-    const prevWeekStats = useMemo(() => {
-        let total = 0;
-        let completed = 0;
+        const overloadDetected =
+            totalTasks > activeDays * 4 && completedTasks / (totalTasks || 1) < 0.5;
 
-        prevWeekDates.forEach(date => {
-            const day = daysData[date];
-            if (!day?.tasks) return;
+        return {
+            weekKey,
+            totalTasks,
+            completedTasks,
+            activeDays,
+            skippedDays,
+            dominantTime,
+            overloadDetected,
+            updatedAt: new Date().toISOString()
+        };
+    }, [daysData, weekDates, weekKey]);
 
-            total += day.tasks.length;
-            completed += day.tasks.filter(t => t.completed).length;
-        });
+    /* ---------- SAVE SNAPSHOT (REAL-TIME) ---------- */
+    useEffect(() => {
+        const history =
+            JSON.parse(localStorage.getItem("user-week-history")) || {};
 
-        return { total, completed };
-    }, [daysData, prevWeekDates]);
+        history[weekKey] = behaviorSnapshot;
 
-    const motivation = useMemo(
-        () => getWeeklyMessage(weekStats, prevWeekStats),
-        [weekStats, prevWeekStats]
-    );
+        localStorage.setItem(
+            "user-week-history",
+            JSON.stringify(history)
+        );
+    }, [behaviorSnapshot, weekKey]);
 
-    /* ---------- DAY-WISE TASKS ---------- */
+    /* ---------- DAY TASK BUCKETS ---------- */
     const dayBuckets = useMemo(() => {
         const completed = {};
         const pending = {};
@@ -180,8 +147,8 @@ export default function WeeklySummaryModal({ onClose }) {
                         {weekOffset === 0
                             ? "This Week"
                             : weekOffset === -1
-                            ? "Last Week"
-                            : `${Math.abs(weekOffset)} Weeks Ago`}
+                                ? "Last Week"
+                                : `${Math.abs(weekOffset)} Weeks Ago`}
                     </h2>
 
                     <div className="header-actions">
@@ -197,10 +164,18 @@ export default function WeeklySummaryModal({ onClose }) {
                     </div>
                 </header>
 
-                {/* ---------- YOU VS OLD YOU ---------- */}
-                <div className="weekly-motivation">
-                    <h3>{motivation.title}</h3>
-                    <p>{motivation.message}</p>
+                {/* ---------- STEP 1: SNAPSHOT PREVIEW (DEBUG / TRANSPARENT) ---------- */}
+                <div className="weekly-snapshot">
+                    <p>
+                        Tasks: {behaviorSnapshot.completedTasks} /{" "}
+                        {behaviorSnapshot.totalTasks}
+                    </p>
+                    <p>Active days: {behaviorSnapshot.activeDays}</p>
+                    {behaviorSnapshot.overloadDetected && (
+                        <p className="warning">
+                            Week looks overloaded
+                        </p>
+                    )}
                 </div>
 
                 {/* ---------- TOGGLE ---------- */}
