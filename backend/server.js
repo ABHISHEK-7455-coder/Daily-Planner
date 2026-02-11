@@ -17,7 +17,6 @@
 //   process.env.VAPID_PRIVATE_KEY
 // );
 
-// // Store subscriptions (in production use a database)
 // const subscriptions = new Map();
 
 // // ─── Groq client ────────────────────────────────────────────
@@ -41,14 +40,10 @@
 // app.post("/api/subscribe", async (req, res) => {
 //   try {
 //     const { subscription, userId } = req.body;
-
 //     if (!subscription || !userId) {
 //       return res.status(400).json({ error: "Subscription and userId required" });
 //     }
-
-//     // Store subscription (in production, save to database)
 //     subscriptions.set(userId, subscription);
-
 //     res.json({ success: true, message: "Subscribed successfully" });
 //   } catch (error) {
 //     console.error("Subscribe error:", error);
@@ -56,230 +51,157 @@
 //   }
 // });
 
-// // ─── POST /api/send-notification (for testing/manual sends) ─
-// app.post("/api/send-notification", async (req, res) => {
-//   try {
-//     const { userId, title, body } = req.body;
-
-//     const subscription = subscriptions.get(userId);
-//     if (!subscription) {
-//       return res.status(404).json({ error: "User not subscribed" });
-//     }
-
-//     const payload = JSON.stringify({
-//       title: title || "Daily Planner Reminder",
-//       body: body || "Don't forget to check your tasks!",
-//       icon: "/icon-192x192.png"
-//     });
-
-//     await webPush.sendNotification(subscription, payload);
-
-//     res.json({ success: true, message: "Notification sent" });
-//   } catch (error) {
-//     console.error("Send notification error:", error);
-//     res.status(500).json({ error: "Failed to send notification" });
-//   }
-// });
-
-// // ─── Scheduled notifications (runs at specific times) ──────
-// // You can use node-cron or similar to schedule these
-// // Example times: 8 AM, 9:30 PM, 11:30 PM
-// // This is a basic example - in production use a proper job scheduler
-// function scheduleNotifications() {
-//   // This is just a placeholder - implement with node-cron or similar
-//   // Example:
-//   // cron.schedule('0 8 * * *', () => sendMorningReminder());
-//   // cron.schedule('30 21 * * *', () => sendEveningReminder());
-//   // cron.schedule('30 23 * * *', () => sendNightReminder());
-//   console.log("📅 Notification scheduler ready (implement with node-cron)");
-// }
-
-// scheduleNotifications();
-
-// // ─────────────────────────────────────────────────────────────
-// // SYSTEM PROMPT BUILDER
-// // This is the REAL fix — we build a detailed, context-rich
-// // system prompt every single request so the buddy ALWAYS knows
-// // exactly what's happening with the user's tasks.
-// // ─────────────────────────────────────────────────────────────
+// // ─── SYSTEM PROMPT BUILDER ─────────────────────────────────
 // function buildSystemPrompt(language, taskContext) {
 //   const { total, completed, pending, pendingTasks, completedTasks } = taskContext;
 
-//   // ── language style guide ──
 //   const langGuide = {
 //     hindi: {
 //       tone: "Simple, friendly Hindi. Avoid heavy words.",
-//       example: "Aaj ka kaam kaisa chal raha hai? 😊",
-//       celebrate: "Bahut achha! Task kar diya! 🎉",
-//       askProgress: "Batao, kitne tasks ho gaye? Kitne baache hain?",
-//       offerHelp: "Chinta mat karo, main tod deta hoon chhote steps mein!",
 //       rule: "Sirf Hindi mein jawab do. Kabhi English mat use karo."
 //     },
 //     english: {
 //       tone: "Simple, casual, warm English. Like a supportive friend.",
-//       example: "Hey! How's it going today? 😊",
-//       celebrate: "Nice work! You finished that! 🎉",
-//       askProgress: "So how many tasks did you knock out? How many are left?",
-//       offerHelp: "Don't worry, let me break it down into small steps for you!",
 //       rule: "Reply ONLY in English. Never mix in Hindi."
 //     },
 //     hinglish: {
 //       tone: "Natural Hindi + English mix. Casual and friendly.",
-//       example: "Hey! Aaj ka work kaisa chal raha hai? 😊",
-//       celebrate: "Arrey nice! Task kar diya! 🎉",
-//       askProgress: "Batao, kitne tasks ho gaye aur kitne baache hain?",
-//       offerHelp: "Chinta mat karo, main break kar deta hoon small steps mein!",
 //       rule: "Mix Hindi and English naturally. Keep it casual."
 //     }
 //   };
 
 //   const lang = langGuide[language] || langGuide.english;
 
-//   // ── build live task snapshot ──
 //   let taskSnapshot = "";
-
 //   if (total === 0) {
-//     taskSnapshot = `The user has NO tasks added for today yet. Gently ask them if they want to plan their day or add some tasks.`;
+//     taskSnapshot = `The user has NO tasks added for today yet.`;
 //   } else {
 //     taskSnapshot = `
-// TODAY'S TASK SNAPSHOT (use this data — it is LIVE and ACCURATE):
-// - Total tasks today: ${total}
-// - ✅ Completed: ${completed}
-// - ⏳ Pending: ${pending}
+// TODAY'S TASK SNAPSHOT:
+// - Total: ${total} | Completed: ${completed} | Pending: ${pending}
 // `;
 //     if (completedTasks.length > 0) {
-//       taskSnapshot += `\nCompleted tasks:\n${completedTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})`).join("\n")}\n`;
+//       taskSnapshot += `\nCompleted tasks:\n${completedTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ''}`).join("\n")}`;
 //     }
 //     if (pendingTasks.length > 0) {
-//       taskSnapshot += `\nPending tasks (not done yet):\n${pendingTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ""}`).join("\n")}\n`;
+//       taskSnapshot += `\nPending tasks:\n${pendingTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ''}`).join("\n")}`;
 //     }
-
-//     // progress percentage
-//     const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-//     taskSnapshot += `\nProgress: ${pct}% done today.\n`;
 //   }
 
-//   // ── the actual system prompt ──
 //   return `
-// You are a caring, smart buddy for a time management app. Talk like a friend, not a robot.
+// You are a caring, proactive AI buddy helping with time management. Your goal: MAKE SURE ALL TASKS GET COMPLETED.
 
 // LANGUAGE: ${lang.rule}
 // Style: ${lang.tone}
 
-// ─────────────────────────────
-// LIVE TASK DATA:
 // ${taskSnapshot}
-// ─────────────────────────────
 
-// CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour format)
+// CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour)
 // CURRENT DATE: ${new Date().toLocaleDateString()}
+// REMINDER vs TASK - CRITICAL DISTINCTION:
 
+// Use **set_reminder** when:
+// ✅ "remind me in 5 min" 
+// ✅ "5 min mai yaad dilana"
+// ✅ "reminder set karo 10:30 pe"
+// ✅ User wants a NOTIFICATION only
+
+// Use **add_task** when:
+// ✅ "add task X"
+// ✅ "X karna hai Y time pe" (I need to do X at Y time)
+// ✅ User wants to ADD TO TASK LIST
+
+// NEVER confuse these two!
 // ═══════════════════════════════════════════════════════════════
-// CRITICAL RULES - READ CAREFULLY:
-// ═══════════════════════════════════════════════════════════════
-
-// 1. **UNDERSTAND TIME IN USER'S MESSAGE:**
-//    - "23:00 pe remind" → startTime should be "23:00"
-//    - "5 min mai" → calculate current time + 5 mins, set that as startTime
-//    - "kal subah" → tomorrow morning, around "09:00"
-//    - Always extract and use time when user mentions it!
-
-// 2. **WHEN TO USE WHICH TOOL:**
-   
-//    Use **set_reminder** when:
-//    ✅ User says "remind me in 5 min", "5 min mai yaad dilana", "reminder set karo"
-//    ✅ User just wants a notification, NOT a task in their list
-//    ✅ Example: "5 min mai remind karna" → set_reminder (NOT add_task!)
-   
-//    Use **add_task** when:
-//    ✅ User explicitly says "add task", "task banao", "add karo [task name]"
-//    ✅ User mentions specific work to do: "23:00 pe git push krna hai"
-//    ✅ Example: "exploring website for reading task add karo 23:20 pe" → add_task
-   
-//    Use **delete_task** when:
-//    ✅ "delete it", "remove", "hat jao", "isse nikal do"
-   
-//    Use **complete_task** when:
-//    ✅ "ho gaya", "done", "kar liya", "finish"
-   
-//    Give **text advice** (no tool) when:
-//    ✅ "how to do this?", "kaise karu?", "next kya hai?"
-//    ✅ Just tell them, don't call functions!
-
-// 3. **WHEN GIVING ADVICE (not using tools):**
-//    - Keep it SHORT - max 2-3 sentences
-//    - Give ONE practical tip, not a tutorial
-//    - Example: "Documentation ke liye: bas main points bullet mein likh lo. 5 min done!"
-//    - Don't give numbered steps unless they explicitly ask "give me steps"
-
-// 4. **BE CONTEXTUALLY SMART:**
-//    - If it's night (20:00-23:59), don't mention morning tasks
-//    - If it's morning (06:00-11:59), don't push evening tasks
-//    - Look at what makes sense RIGHT NOW
-
-// 5. **PROACTIVE CHECK-INS:**
-//    - When user opens chat, greet AND tell them their status
-//    - Example: "Hey! 5 tasks pending hain. 'Write documentation' abhi karna hai. Kaise help karoon? 😊"
-//    - Ask follow-ups: "Ho gaya?" or "Kuch problem aayi?"
-
-// 6. **HANDLE MISTAKES GRACEFULLY:**
-//    - If user says "no that's wrong" or "delete it", immediately fix
-//    - Don't apologize excessively - just fix and move on
-//    - Example: "Oops! Hat gaya. Ab kya chahiye?"
-
-// ═══════════════════════════════════════════════════════════════
-// EXAMPLES OF CORRECT BEHAVIOR:
+// CRITICAL TIME EXTRACTION RULES:
 // ═══════════════════════════════════════════════════════════════
 
-// User: "5 min mai remind karna"
-// You: [USE set_reminder with time = current_time + 5 min]
-// Response: "Done! 5 min baad yaad dila dunga 👍"
+// ALWAYS extract time when user mentions it:
+// - "23:00 pe task add karo" → startTime: "23:00"
+// - "12:10 am pe" → startTime: "00:10" (convert AM/PM to 24-hour!)
+// - "5 min mai" → calculate current time + 5 mins → startTime
+// - "subah 9 baje" → startTime: "09:00"
+// - "shaam 6 baje" → startTime: "18:00"
+// - "12:10 se 12:30 tak" → startTime: "00:10", endTime: "00:30"
 
-// User: "23:00 pe git push task add karo"
-// You: [USE add_task("git push", "evening", "23:00")]
-// Response: "✅ 'git push' task add ho gaya (23:00 pe)"
-
-// User: "exploring website for reading add karo around 23:20"
-// You: [USE add_task("exploring website for reading", "evening", "23:20")]
-// Response: "✅ Task add ho gaya (23:20 pe)"
-
-// User: "task add nhi krna, bas remind krva do"
-// You: [USE set_reminder, NOT add_task]
-// Response: "Theek hai! Reminder set ho gaya, yaad dila dunga ✅"
-
-// User: "isse delete karo"
-// You: [USE delete_task with last mentioned task]
-// Response: "🗑️ Hat gaya!"
-
-// User: "next kya krna hai?"
-// You: [DON'T use tool - just tell from task data]
-// Response: "Agli task hai 'write documentation' (23:00 pe). Start karein?"
-
-// User: "documentation kaise likhoon 5 min mai?"
-// You: [DON'T use tool - give advice]
-// Response: "Bas main points likh lo bullet mein. Quick ho jayega!"
-
-// User: "maine pushing code kar liya"
-// You: [USE complete_task("pushing code")]
-// Response: "✅ Nice! Ek aur ho gaya! 🎉"
+// DETERMINING timeOfDay:
+// - 05:00 - 11:59 → "morning"
+// - 12:00 - 16:59 → "afternoon"  
+// - 17:00 - 04:59 → "evening"
 
 // ═══════════════════════════════════════════════════════════════
+// TOOL USAGE RULES:
+// ═══════════════════════════════════════════════════════════════
+
+// Use **add_task** when:
+// ✅ User says: "add task", "task banao", "X karna hai Y time pe"
+// ✅ ALWAYS include startTime if user mentions ANY time
+// ✅ Extract title, time, and timeOfDay correctly
+
+// Use **complete_task** when:
+// ✅ "ho gaya", "done", "complete ho gaya", "kar liya"
+// ✅ Match task by searching in task list - use EXACT title from pending tasks
+
+// Use **delete_task** when:
+// ✅ "delete karo", "hat jao", "remove karo"
+// ✅ Match task by searching in task list - use EXACT title from tasks
+
+// Use **update_notes** when in notes mode:
+// ✅ User dictates thoughts
+// ✅ Add timestamp and content
+
+// ═══════════════════════════════════════════════════════════════
+// TASK COMPLETION MOTIVATION:
+// ═══════════════════════════════════════════════════════════════
+
+// When checking on tasks:
+// - Don't just ask "ho gaya?" - be specific: "Writing documentation ho gaya?"
+// - If user says no, immediately offer help:
+//   "Koi problem aa rahi hai? Main steps de sakta hoon!"
+// - Break big tasks into micro-steps
+// - Celebrate every completion enthusiastically
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLES:
+// ═══════════════════════════════════════════════════════════════
+
+// User: "git push task add karo 23:00 pe"
+// You: [Call add_task("git push", "evening", "23:00", null)]
+// Response: "✅ Git push task add ho gaya (23:00 pe)!"
+
+// User: "12:10 am se 12:30 am tak code review"
+// You: [Call add_task("code review", "evening", "00:10", "00:30")]
+// Response: "✅ Code review add ho gaya (00:10 - 00:30)!"
+
+// User: "documentation task delete karo"
+// You: [Call delete_task("documentation")]
+// Response: "🗑️ Documentation task delete ho gaya!"
+
+// User: "writing done ho gaya"
+// You: [Call complete_task("writing")]
+// Response: "🎉 Awesome! Writing complete! Agli task ready ho?"
+
+// User: "documentation ka task nahi ho raha"
+// You: "Koi baat nahi! Yeh karo:
+// 1. Pehle main points list karo (2 min)
+// 2. Har point ko 1-2 sentences mein expand karo (5 min)
+// 3. Review karo (1 min)
+
+// Start small - pehla step kar lo!"
 
 // REMEMBER:
-// - One action per user message (don't loop!)
-// - Extract time from user's words carefully
-// - Text advice when they need help, tool call when they need action
-// - Be warm, not robotic
-// - Short replies (1-3 sentences)
+// - Extract time EVERY time user mentions it
+// - Be motivating and proactive
+// - Help complete tasks, don't just track them
+// - Short, actionable responses
 // `.trim();
 // }
 
-// // ─── POST /api/chat ─────────────────────────────────────────
-// app.post("/api/chat", async (req, res) => {
+// // ─── POST /api/advanced-chat ────────────────────────────────
+// app.post("/api/advanced-chat", async (req, res) => {
 //   try {
-//     const { messages, language, taskContext } = req.body;
+//     const { messages, language, taskContext, isVoice, currentDate, voiceMode } = req.body;
 
-//     // ── validate ──
 //     if (!messages || !Array.isArray(messages)) {
 //       return res.status(400).json({ error: "Messages array is required" });
 //     }
@@ -287,34 +209,56 @@
 //       return res.status(400).json({ error: "taskContext is required" });
 //     }
 
-//     const selectedLanguage = language || "english";
+//     const selectedLanguage = language || "hinglish";
+//     let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
-//     // ── build the rich system prompt with live task data ──
-//     const systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
+//     // Add mode-specific instructions
+//     if (isVoice && voiceMode === 'notes') {
+//       systemPrompt += `\n\nVOICE NOTES MODE: User is dictating. Call update_notes tool. Be brief: "Got it!" or "Noted!"`;
+//     } else if (isVoice && voiceMode === 'tasks') {
+//       systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
+//     }
 
-//     // ── cap history to last 20 messages to stay within token limits ──
 //     const recentMessages = messages.slice(-20);
 
-//     // ── Define tools the buddy can use ──
 //     const tools = [
 //       {
 //         type: "function",
 //         function: {
 //           name: "set_reminder",
-//           description: "Set a simple reminder/notification at a specific time. Use when user ONLY wants a reminder popup, NOT a task in their list. Examples: '5 min mai remind karna', 'reminder set karo', 'yaad dilana'.",
+//           description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
 //           parameters: {
 //             type: "object",
 //             properties: {
-//               time: {
-//                 type: "string",
-//                 description: "Time in HH:MM format (24-hour). Calculate from current time if user says '5 min mai'."
+//               time: { 
+//                 type: "string", 
+//                 description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
 //               },
-//               message: {
-//                 type: "string",
-//                 description: "What to remind about (optional)"
+//               message: { 
+//                 type: "string", 
+//                 description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
 //               }
 //             },
-//             required: ["time"]
+//             required: ["time", "message"]
+//           }
+//         }
+//       },
+//       {
+//         type: "function",
+//         function: {
+//           name: "update_notes",
+//           description: "Update daily notes. Use in notes mode when user dictates content.",
+//           parameters: {
+//             type: "object",
+//             properties: {
+//               content: { type: "string", description: "Text to add to notes" },
+//               mode: { 
+//                 type: "string", 
+//                 enum: ["append", "replace"],
+//                 description: "append=add to existing, replace=overwrite"
+//               }
+//             },
+//             required: ["content"]
 //           }
 //         }
 //       },
@@ -322,26 +266,26 @@
 //         type: "function",
 //         function: {
 //           name: "add_task",
-//           description: "Add a real task to the user's task list. Use ONLY when user explicitly wants to add a task with a title and time. Examples: 'add task', 'git push krna hai 23:00 pe', 'task add karo'.",
+//           description: "Add task. CRITICAL: Extract startTime from user message if ANY time mentioned.",
 //           parameters: {
 //             type: "object",
 //             properties: {
-//               title: {
-//                 type: "string",
-//                 description: "The task title/description"
+//               title: { 
+//                 type: "string", 
+//                 description: "Task title/description" 
 //               },
-//               timeOfDay: {
-//                 type: "string",
+//               timeOfDay: { 
+//                 type: "string", 
 //                 enum: ["morning", "afternoon", "evening"],
-//                 description: "Which part of day - decide from current time or user's specification"
+//                 description: "morning (5am-12pm), afternoon (12pm-5pm), evening (5pm-5am)"
 //               },
-//               startTime: {
-//                 type: "string",
-//                 description: "Start time in HH:MM format (24-hour). Extract from user message."
+//               startTime: { 
+//                 type: "string", 
+//                 description: "HH:MM format (24-hour). MUST extract if user mentions time. Examples: '23:00', '00:10', '09:00'"
 //               },
-//               endTime: {
-//                 type: "string",
-//                 description: "End time in HH:MM format (optional)"
+//               endTime: { 
+//                 type: "string", 
+//                 description: "HH:MM format (24-hour). Optional end time."
 //               }
 //             },
 //             required: ["title", "timeOfDay"]
@@ -352,13 +296,13 @@
 //         type: "function",
 //         function: {
 //           name: "complete_task",
-//           description: "Mark a task as completed. Use when user says they finished a task.",
+//           description: "Mark task done. Use EXACT task title from pending tasks list.",
 //           parameters: {
 //             type: "object",
 //             properties: {
-//               taskTitle: {
+//               taskTitle: { 
 //                 type: "string",
-//                 description: "The title of the task to mark as complete"
+//                 description: "EXACT task title from the pending tasks list shown above"
 //               }
 //             },
 //             required: ["taskTitle"]
@@ -369,13 +313,13 @@
 //         type: "function",
 //         function: {
 //           name: "delete_task",
-//           description: "Delete/remove a task. Use when user says 'delete it', 'remove it', 'hat jao', or similar.",
+//           description: "Delete task. Use EXACT task title from tasks list.",
 //           parameters: {
 //             type: "object",
 //             properties: {
-//               taskTitle: {
+//               taskTitle: { 
 //                 type: "string",
-//                 description: "The title of the task to delete (use the most recently mentioned task if unclear)"
+//                 description: "EXACT task title from the tasks list shown above"
 //               }
 //             },
 //             required: ["taskTitle"]
@@ -384,54 +328,118 @@
 //       }
 //     ];
 
-//     // ── call Groq with tools ──
 //     const completion = await groq.chat.completions.create({
 //       model: "llama-3.3-70b-versatile",
 //       messages: [
 //         { role: "system", content: systemPrompt },
-//         ...recentMessages.map(m => ({
-//           role: m.role,
-//           content: m.content
-//         }))
+//         ...recentMessages.map(m => ({ role: m.role, content: m.content }))
 //       ],
 //       tools: tools,
 //       tool_choice: "auto",
 //       temperature: 0.7,
-//       max_tokens: 300,
-//       top_p: 0.9
+//       max_tokens: 300
 //     });
 
 //     const response = completion.choices[0];
-    
-//     // Check if AI wants to call a function
-//     if (response.message.tool_calls && response.message.tool_calls.length > 0) {
-//       const toolCall = response.message.tool_calls[0];
-//       const functionName = toolCall.function.name;
-//       const functionArgs = JSON.parse(toolCall.function.arguments);
 
-//       // Return the function call to the frontend
-//       return res.json({
-//         type: "function_call",
-//         function: functionName,
-//         arguments: functionArgs,
-//         message: response.message.content || ""
-//       });
+//     // Collect all actions
+//     const actions = [];
+//     if (response.message.tool_calls) {
+//       for (const toolCall of response.message.tool_calls) {
+//         const params = JSON.parse(toolCall.function.arguments);
+        
+//         // Log for debugging
+//         console.log(`AI called: ${toolCall.function.name}`, params);
+        
+//         actions.push({
+//           type: toolCall.function.name,
+//           params: params
+//         });
+//       }
 //     }
 
-//     // Normal text response
-//     const reply = response.message.content || "Sorry, I couldn't respond. Try again! 🙏";
-//     res.json({ type: "message", message: reply });
+//     const reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
+
+//     res.json({
+//       type: actions.length > 0 ? "actions" : "message",
+//       message: reply,
+//       actions: actions
+//     });
 
 //   } catch (error) {
-//     console.error("Chat error:", error);
-//     res.status(500).json({ error: "Something went wrong on the server" });
+//     console.error("Advanced chat error:", error);
+//     res.status(500).json({ error: "Something went wrong" });
+//   }
+// });
+
+// // ─── POST /api/task-reminder ────────────────────────────────
+// app.post("/api/task-reminder", async (req, res) => {
+//   try {
+//     const { task, language } = req.body;
+
+//     const messages = {
+//       hinglish: `⏰ "${task.title}" 10 min mein start hone wala hai (${task.startTime} pe). Ready ho jao!`,
+//       hindi: `⏰ "${task.title}" 10 मिनट में शुरू होगा (${task.startTime} पर)। तैयार हो जाओ!`,
+//       english: `⏰ "${task.title}" starts in 10 minutes (at ${task.startTime}). Get ready!`
+//     };
+
+//     res.json({ message: messages[language] || messages.hinglish });
+//   } catch (error) {
+//     console.error("Task reminder error:", error);
+//     res.status(500).json({ error: "Failed to generate reminder" });
+//   }
+// });
+
+// // ─── POST /api/task-checkin ─────────────────────────────────
+// app.post("/api/task-checkin", async (req, res) => {
+//   try {
+//     const { task, language } = req.body;
+
+//     const messages = {
+//       hinglish: `🤔 "${task.title}" ho gaya kya? Agar nahi hua to koi baat nahi - main help kar sakta hoon!`,
+//       hindi: `🤔 "${task.title}" हो गया क्या? अगर नहीं हुआ तो कोई बात नहीं - मैं मदद कर सकता हूं!`,
+//       english: `🤔 Did you finish "${task.title}"? If not, no worries - I can help!`
+//     };
+
+//     res.json({ message: messages[language] || messages.hinglish });
+//   } catch (error) {
+//     console.error("Task check-in error:", error);
+//     res.status(500).json({ error: "Failed to generate check-in" });
+//   }
+// });
+
+// // ─── POST /api/proactive-checkin ────────────────────────────
+// app.post("/api/proactive-checkin", async (req, res) => {
+//   try {
+//     const { type, language, taskContext } = req.body;
+
+//     const prompts = {
+//       morning: {
+//         hinglish: `Morning! Aaj ${taskContext.total} tasks hain. Kaunsa pehle karoge?`,
+//         hindi: `सुप्रभात! आज ${taskContext.total} tasks हैं। कौनसा पहले करोगे?`,
+//         english: `Good morning! You have ${taskContext.total} tasks today. Which one first?`
+//       },
+//       evening: {
+//         hinglish: `Shaam ho gayi! ${taskContext.completed}/${taskContext.total} done. Bache hue tasks complete karo?`,
+//         hindi: `शाम हो गयी! ${taskContext.completed}/${taskContext.total} पूरे हुए। बाकी complete करें?`,
+//         english: `Evening! ${taskContext.completed}/${taskContext.total} done. Ready to finish the rest?`
+//       }
+//     };
+
+//     const selectedLang = language || "hinglish";
+//     const message = prompts[type]?.[selectedLang] || prompts.morning.hinglish;
+
+//     res.json({ message });
+//   } catch (error) {
+//     console.error("Proactive check-in error:", error);
+//     res.status(500).json({ error: "Failed to generate check-in" });
 //   }
 // });
 
 // // ─── START ──────────────────────────────────────────────────
 // app.listen(PORT, () => {
 //   console.log(`🚀 Buddy server running on port ${PORT}`);
-// });
+  // });
 import express from "express";
 import Groq from "groq-sdk";
 import cors from "cors";
@@ -450,7 +458,6 @@ webPush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-// Store subscriptions (in production use a database)
 const subscriptions = new Map();
 
 // ─── Groq client ────────────────────────────────────────────
@@ -474,14 +481,10 @@ app.get("/api/health", (req, res) => {
 app.post("/api/subscribe", async (req, res) => {
   try {
     const { subscription, userId } = req.body;
-
     if (!subscription || !userId) {
       return res.status(400).json({ error: "Subscription and userId required" });
     }
-
-    // Store subscription (in production, save to database)
     subscriptions.set(userId, subscription);
-
     res.json({ success: true, message: "Subscribed successfully" });
   } catch (error) {
     console.error("Subscribe error:", error);
@@ -489,250 +492,207 @@ app.post("/api/subscribe", async (req, res) => {
   }
 });
 
-// ─── POST /api/send-notification (for testing/manual sends) ─
-app.post("/api/send-notification", async (req, res) => {
-  try {
-    const { userId, title, body } = req.body;
-
-    const subscription = subscriptions.get(userId);
-    if (!subscription) {
-      return res.status(404).json({ error: "User not subscribed" });
-    }
-
-    const payload = JSON.stringify({
-      title: title || "Daily Planner Reminder",
-      body: body || "Don't forget to check your tasks!",
-      icon: "/icon-192x192.png"
-    });
-
-    await webPush.sendNotification(subscription, payload);
-
-    res.json({ success: true, message: "Notification sent" });
-  } catch (error) {
-    console.error("Send notification error:", error);
-    res.status(500).json({ error: "Failed to send notification" });
-  }
-});
-
-// ─── Scheduled notifications (runs at specific times) ──────
-// You can use node-cron or similar to schedule these
-// Example times: 8 AM, 9:30 PM, 11:30 PM
-// This is a basic example - in production use a proper job scheduler
-function scheduleNotifications() {
-  // This is just a placeholder - implement with node-cron or similar
-  // Example:
-  // cron.schedule('0 8 * * *', () => sendMorningReminder());
-  // cron.schedule('30 21 * * *', () => sendEveningReminder());
-  // cron.schedule('30 23 * * *', () => sendNightReminder());
-  console.log("📅 Notification scheduler ready (implement with node-cron)");
-}
-
-scheduleNotifications();
-
-// ─────────────────────────────────────────────────────────────
-// SYSTEM PROMPT BUILDER
-// This is the REAL fix — we build a detailed, context-rich
-// system prompt every single request so the buddy ALWAYS knows
-// exactly what's happening with the user's tasks.
-// ─────────────────────────────────────────────────────────────
+// ─── SYSTEM PROMPT BUILDER WITH ALARM SUPPORT ──────────────
 function buildSystemPrompt(language, taskContext) {
   const { total, completed, pending, pendingTasks, completedTasks } = taskContext;
 
-  // ── language style guide ──
   const langGuide = {
     hindi: {
       tone: "Simple, friendly Hindi. Avoid heavy words.",
-      example: "Aaj ka kaam kaisa chal raha hai? 😊",
-      celebrate: "Bahut achha! Task kar diya! 🎉",
-      askProgress: "Batao, kitne tasks ho gaye? Kitne baache hain?",
-      offerHelp: "Chinta mat karo, main tod deta hoon chhote steps mein!",
       rule: "Sirf Hindi mein jawab do. Kabhi English mat use karo."
     },
     english: {
       tone: "Simple, casual, warm English. Like a supportive friend.",
-      example: "Hey! How's it going today? 😊",
-      celebrate: "Nice work! You finished that! 🎉",
-      askProgress: "So how many tasks did you knock out? How many are left?",
-      offerHelp: "Don't worry, let me break it down into small steps for you!",
       rule: "Reply ONLY in English. Never mix in Hindi."
     },
     hinglish: {
       tone: "Natural Hindi + English mix. Casual and friendly.",
-      example: "Hey! Aaj ka work kaisa chal raha hai? 😊",
-      celebrate: "Arrey nice! Task kar diya! 🎉",
-      askProgress: "Batao, kitne tasks ho gaye aur kitne baache hain?",
-      offerHelp: "Chinta mat karo, main break kar deta hoon small steps mein!",
       rule: "Mix Hindi and English naturally. Keep it casual."
     }
   };
 
   const lang = langGuide[language] || langGuide.english;
 
-  // ── build live task snapshot ──
   let taskSnapshot = "";
-
   if (total === 0) {
-    taskSnapshot = `The user has NO tasks added for today yet. Gently ask them if they want to plan their day or add some tasks.`;
+    taskSnapshot = `The user has NO tasks added for today yet.`;
   } else {
     taskSnapshot = `
-TODAY'S TASK SNAPSHOT (use this data — it is LIVE and ACCURATE):
-- Total tasks today: ${total}
-- ✅ Completed: ${completed}
-- ⏳ Pending: ${pending}
+TODAY'S TASK SNAPSHOT:
+- Total: ${total} | Completed: ${completed} | Pending: ${pending}
 `;
     if (completedTasks.length > 0) {
-      taskSnapshot += `\nCompleted tasks:\n${completedTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})`).join("\n")}\n`;
+      taskSnapshot += `\nCompleted tasks:\n${completedTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ''}`).join("\n")}`;
     }
     if (pendingTasks.length > 0) {
-      taskSnapshot += `\nPending tasks (not done yet):\n${pendingTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ""}`).join("\n")}\n`;
+      taskSnapshot += `\nPending tasks:\n${pendingTasks.map((t, i) => `  ${i + 1}. "${t.title}" (${t.timeOfDay})${t.startTime ? ` at ${t.startTime}` : ''}`).join("\n")}`;
     }
-
-    // progress percentage
-    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    taskSnapshot += `\nProgress: ${pct}% done today.\n`;
   }
+ const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+  const currentDay = String(currentDate.getDate()).padStart(2, '0');
+  const tomorrowDate = new Date(currentDate);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrow = tomorrowDate.toISOString().slice(0, 10);
 
-  // ── the actual system prompt ──
   return `
-You are a caring, smart buddy for a time management app. Talk like a friend, not a robot.
+You are a caring, proactive AI buddy helping with time management and alarms. Your goal: HELP USER STAY ON TOP OF EVERYTHING.
 
 LANGUAGE: ${lang.rule}
 Style: ${lang.tone}
 
-─────────────────────────────
-LIVE TASK DATA:
 ${taskSnapshot}
-─────────────────────────────
 
-CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour format)
-CURRENT DATE: ${new Date().toLocaleDateString()}
-
-═══════════════════════════════════════════════════════════════
-CRITICAL RULES - READ CAREFULLY:
-═══════════════════════════════════════════════════════════════
-
-1. **UNDERSTAND TIME IN USER'S MESSAGE:**
-   - "23:00 pe remind" → startTime should be "23:00"
-   - "5 min mai" → calculate current time + 5 mins, set that as startTime
-   - "12:10 am" → "00:10" (convert to 24-hour)
-   - "12:10 se 12:30" → startTime "00:10", endTime "00:30"
-   - Always extract and use time when user mentions it!
-
-**HANDLING MULTIPLE TASKS:**
-If user asks for multiple tasks in ONE message (example: "3 task add karo - first X at Y time, second Z at A time, third B at C time"), you must:
-1. Call add_task ONCE for the FIRST task only
-2. In your text response, tell user: "Pehla add ho gaya! Baki 2 batao separately"
-3. Wait for user to confirm or give next task
-4. NEVER try to add all tasks in one response - this causes loops!
-
-2. **WHEN TO USE WHICH TOOL:**
-   
-   Use **set_reminder** when:
-   ✅ User says "remind me in 5 min", "5 min mai yaad dilana", "reminder set karo"
-   ✅ User just wants a notification, NOT a task in their list
-   ✅ Example: "5 min mai remind karna" → set_reminder (NOT add_task!)
-   
-   Use **add_task** when:
-   ✅ User explicitly says "add task", "task banao", "add karo [task name]"
-   ✅ User mentions specific work to do: "23:00 pe git push krna hai"
-   ✅ Example: "exploring website for reading task add karo 23:20 pe" → add_task
-   
-   Use **delete_task** when:
-   ✅ "delete it", "remove", "hat jao", "isse nikal do"
-   
-   Use **complete_task** when:
-   ✅ "ho gaya", "done", "kar liya", "finish"
-   
-   Give **text advice** (no tool) when:
-   ✅ "how to do this?", "kaise karu?", "next kya hai?"
-   ✅ Just tell them, don't call functions!
-
-3. **WHEN GIVING ADVICE (not using tools):**
-   - Keep it SHORT - max 2-3 sentences
-   - Give ONE practical tip, not a tutorial
-   - Example: "Documentation ke liye: bas main points bullet mein likh lo. 5 min done!"
-   - Don't give numbered steps unless they explicitly ask "give me steps"
-
-4. **BE CONTEXTUALLY SMART:**
-   - If it's night (20:00-23:59), don't mention morning tasks
-   - If it's morning (06:00-11:59), don't push evening tasks
-   - Look at what makes sense RIGHT NOW
-
-5. **PROACTIVE CHECK-INS:**
-   - When user opens chat, greet AND tell them their status
-   - Example: "Hey! 5 tasks pending hain. 'Write documentation' abhi karna hai. Kaise help karoon? 😊"
-   - Ask follow-ups: "Ho gaya?" or "Kuch problem aayi?"
-
-6. **HANDLE MISTAKES GRACEFULLY:**
-   - If user says "no that's wrong" or "delete it", immediately fix
-   - Don't apologize excessively - just fix and move on
-   - Example: "Oops! Hat gaya. Ab kya chahiye?"
+CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour)
+CURRENT DATE: ${new Date().toLocaleDateString()} (${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')})
 
 ═══════════════════════════════════════════════════════════════
-EXAMPLES OF CORRECT BEHAVIOR:
+ALARM vs REMINDER vs TASK - CRITICAL DISTINCTION:
 ═══════════════════════════════════════════════════════════════
 
-User: "5 min mai remind karna"
-You: [USE set_reminder with time = current_time + 5 min]
-Response: "Done! 5 min baad yaad dila dunga 👍"
+Use **set_alarm** when:
+✅ "set alarm for 5 AM"
+✅ "alarm laga do 6 baje"
+✅ "wake me up at 7:30"
+✅ "set alarm 23 feb meeting"
+✅ "18 feb friend birthday alarm"
+✅ User wants a REAL ALARM with sound that rings on a specific date/time
 
-User: "23:00 pe git push task add karo"
-You: [USE add_task("git push", "evening", "23:00")]
-Response: "✅ 'git push' task add ho gaya (23:00 pe)"
+Use **set_reminder** when:
+✅ "remind me in 5 min"
+✅ "5 min mai yaad dilana" (quick notification)
+✅ User wants a simple notification, NOT a recurring/dated alarm
 
-User: "3 task add karo: first 12:10 pe work status, second 12:10-12:30 features add, third 12:30 pe update"
-You: [USE add_task("work status", "evening", "00:10")]
-Response: "✅ 'work status' add ho gaya (00:10 pe)! Baki 2 tasks bhi add karoon? Ek ek karke batao"
+Use **add_task** when:
+✅ "add task X"
+✅ "X karna hai Y time pe" (work to do)
+✅ User wants to ADD TO TASK LIST
 
-User: "haan next wala"
-You: [USE add_task("features add", "evening", "00:10", "00:30")]
-Response: "✅ 'features add' add ho gaya (00:10 - 00:30)! Ek aur baaki hai"
+NEVER confuse these three!
 
-User: "haan last wala"
-You: [USE add_task("update", "evening", "00:30")]
-Response: "✅ 'update' add ho gaya (00:30 pe)! Sab done! 🎉"
+═══════════════════════════════════════════════════════════════
+DATE & TIME PARSING FOR ALARMS:
+═══════════════════════════════════════════════════════════════
 
-User: "exploring website for reading add karo around 23:20"
-You: [USE add_task("exploring website for reading", "evening", "23:20")]
-Response: "✅ Task add ho gaya (23:20 pe)"
+CURRENT DATE: ${currentYear}-${currentMonth}-${currentDay}
+TOMORROW: ${tomorrow}
 
-User: "task add nhi krna, bas remind krva do"
-You: [USE set_reminder, NOT add_task]
-Response: "Theek hai! Reminder set ho gaya, yaad dila dunga ✅"
+═══════════════════════════════════════════════════════════════
+ALARM TOOL USAGE - CRITICAL RULES:
+═══════════════════════════════════════════════════════════════
 
-User: "isse delete karo"
-You: [USE delete_task with last mentioned task]
-Response: "🗑️ Hat gaya!"
+Use set_alarm for:
+- "set alarm 5 AM" 
+- "23 feb meeting alarm"
+- "wake me up at 7"
+- "daily alarm 6:30 am"
 
-User: "next kya krna hai?"
-You: [DON'T use tool - just tell from task data]
-Response: "Agli task hai 'write documentation' (23:00 pe). Start karein?"
+PARAMETER RULES:
+1. time: ALWAYS required, HH:MM 24-hour format
+2. date: If mentioned → "YYYY-MM-DD", if NOT mentioned → "" (empty string, NOT null!)
+3. label: Extract from user's words, or use "Alarm"
+4. repeat: "once" (default), "daily", or "custom"
 
-User: "documentation kaise likhoon 5 min mai?"
-You: [DON'T use tool - give advice]
-Response: "Bas main points likh lo bullet mein. Quick ho jayega!"
+TIME CONVERSION:
+"5 AM" → "05:00"
+"5:30 PM" → "17:30"  
+"11 PM" → "23:00"
+"midnight" → "00:00"
+"noon" → "12:00"
 
-User: "maine pushing code kar liya"
-You: [USE complete_task("pushing code")]
-Response: "✅ Nice! Ek aur ho gaya! 🎉"
+DATE CONVERSION:
+"23 feb" → "${currentYear}-02-23"
+"february 18" → "${currentYear}-02-18"
+"tomorrow" → "${tomorrow}"
+"today" → "${currentYear}-${currentMonth}-${currentDay}"
+NO DATE MENTIONED → "" (empty string)
+
+EXAMPLES:
+
+User: "set alarm for 5 AM"
+→ set_alarm(time="05:00", date="", label="Alarm", repeat="once")
+
+User: "23 feb meeting alarm laga do"
+→ set_alarm(time="09:00", date="${currentYear}-02-23", label="meeting", repeat="once")
+
+User: "18 february friend birthday 8 baje"
+→ set_alarm(time="08:00", date="${currentYear}-02-18", label="friend birthday", repeat="once")
+
+User: "wake me up at 7:30 tomorrow"
+→ set_alarm(time="07:30", date="${tomorrow}", label="wake up", repeat="once")
+
+User: "daily 6 am alarm"
+→ set_alarm(time="06:00", date="", label="daily alarm", repeat="daily")
+
+User: "9:35 pe alarm set karo"
+→ set_alarm(time="09:35", date="", label="Alarm", repeat="once")
+
+CRITICAL: NEVER send null! Always use empty string "" if no date.
+
+Keep replies SHORT (1-2 sentences).
+═══════════════════════════════════════════════════════════════
+TIME EXTRACTION FOR TASKS/REMINDERS:
+═══════════════════════════════════════════════════════════════
+
+ALWAYS extract time when user mentions it:
+- "23:00 pe task add karo" → startTime: "23:00"
+- "12:10 am pe" → startTime: "00:10" (convert AM/PM to 24-hour!)
+- "5 min mai" → calculate current time + 5 mins → startTime
+- "subah 9 baje" → startTime: "09:00"
+- "shaam 6 baje" → startTime: "18:00"
+
+DETERMINING timeOfDay:
+- 05:00 - 11:59 → "morning"
+- 12:00 - 16:59 → "afternoon"  
+- 17:00 - 04:59 → "evening"
+
+═══════════════════════════════════════════════════════════════
+TOOL USAGE EXAMPLES:
+═══════════════════════════════════════════════════════════════
+
+User: "set alarm for 5 AM"
+You: [Call set_alarm(time="05:00", date=" ", label="Alarm", repeat="once")]
+Response: "⏰ Alarm set for 5:00 AM!"
+
+User: "alarm laga do 23 feb meeting ke liye"
+You: [Call set_alarm(time="09:00", date="2026-02-23", label="meeting", repeat="once")]
+Note: Assume 9 AM if time not specified for meeting
+Response: "⏰ Meeting alarm set for Feb 23 at 9:00 AM!"
+
+User: "18 feb mere dost ka birthday hai alarm set karo 8 baje"
+You: [Call set_alarm(time="08:00", date="2026-02-18", label="friend birthday", repeat="once")]
+Response: "⏰ Friend birthday alarm set for Feb 18 at 8:00 AM!"
+
+User: "daily 6 am alarm"
+You: [Call set_alarm(time="06:00", date=" ", label="Daily alarm", repeat="daily")]
+Response: "⏰ Daily alarm set for 6:00 AM!"
+
+User: "2 min mai remind karo"
+You: [Call set_reminder(time="HH:MM", message="reminder")]
+Response: "⏰ Reminder set!"
+
+User: "git push task add karo 23:00 pe"
+You: [Call add_task("git push", "evening", "23:00", null)]
+Response: "✅ Git push task add ho gaya (23:00 pe)!"
 
 ═══════════════════════════════════════════════════════════════
 
 REMEMBER:
-- One action per user message (don't loop!)
-- Extract time from user's words carefully
-- Text advice when they need help, tool call when they need action
+- Extract date AND time carefully from user's message
+- set_alarm for dated/timed wake-ups with sound
+- set_reminder for quick notifications
+- add_task for work items
 - Be warm, not robotic
-- Short replies (1-3 sentences)
+- Short replies (1-2 sentences)
 `.trim();
 }
 
-// ─── POST /api/chat ─────────────────────────────────────────
-app.post("/api/chat", async (req, res) => {
+// ─── POST /api/advanced-chat WITH ALARM SUPPORT ────────────
+app.post("/api/advanced-chat", async (req, res) => {
   try {
-    const { messages, language, taskContext } = req.body;
+    const { messages, language, taskContext, isVoice, currentDate, voiceMode } = req.body;
 
-    // ── validate ──
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages array is required" });
     }
@@ -740,34 +700,86 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "taskContext is required" });
     }
 
-    const selectedLanguage = language || "english";
+    const selectedLanguage = language || "hinglish";
+    let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
-    // ── build the rich system prompt with live task data ──
-    const systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
+    // Add mode-specific instructions
+    if (isVoice && voiceMode === 'notes') {
+      systemPrompt += `\n\nVOICE NOTES MODE: User is dictating. Call update_notes tool. Be brief: "Got it!" or "Noted!"`;
+    } else if (isVoice && voiceMode === 'tasks') {
+      systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
+    }
 
-    // ── cap history to last 20 messages to stay within token limits ──
     const recentMessages = messages.slice(-20);
 
-    // ── Define tools the buddy can use ──
     const tools = [
+     {
+    type: "function",
+    function: {
+      name: "set_alarm",
+      description: "Set an alarm with sound and vibration. For wake-up alarms, meeting reminders, birthday alerts, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          time: {
+            type: "string",
+            description: "Time in HH:MM 24-hour format (e.g., '05:00', '17:30', '23:00')"
+          },
+          date: {
+            type: "string",
+            description: "Date in YYYY-MM-DD format (e.g., '2026-02-23'). Use empty string if no specific date."
+          },
+          label: {
+            type: "string",
+            description: "What the alarm is for (e.g., 'wake up', 'meeting', 'gym')"
+          },
+          repeat: {
+            type: "string",
+            enum: ["once", "daily", "custom"],
+            description: "Repeat pattern: once, daily, or custom (weekdays)"
+          }
+        },
+        required: ["time"]
+      }
+    }
+  },
       {
         type: "function",
         function: {
           name: "set_reminder",
-          description: "Set a simple reminder/notification at a specific time. Use when user ONLY wants a reminder popup, NOT a task in their list. Examples: '5 min mai remind karna', 'reminder set karo', 'yaad dilana'.",
+          description: "Set a quick reminder notification (NOT an alarm with sound). Use for short-term reminders like '5 min mai yaad dilana'.",
           parameters: {
             type: "object",
             properties: {
-              time: {
-                type: "string",
-                description: "Time in HH:MM format (24-hour). Calculate from current time if user says '5 min mai'."
+              time: { 
+                type: "string", 
+                description: "Time in HH:MM format (24-hour). Calculate from current time if user says 'X min mai'."
               },
-              message: {
-                type: "string",
-                description: "What to remind about (optional)"
+              message: { 
+                type: "string", 
+                description: "What to remind about."
               }
             },
-            required: ["time"]
+            required: ["time", "message"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_notes",
+          description: "Update daily notes. Use in notes mode when user dictates content.",
+          parameters: {
+            type: "object",
+            properties: {
+              content: { type: "string", description: "Text to add to notes" },
+              mode: { 
+                type: "string", 
+                enum: ["append", "replace"],
+                description: "append=add to existing, replace=overwrite"
+              }
+            },
+            required: ["content"]
           }
         }
       },
@@ -775,26 +787,26 @@ app.post("/api/chat", async (req, res) => {
         type: "function",
         function: {
           name: "add_task",
-          description: "Add a real task to the user's task list. Use ONLY when user explicitly wants to add a task with a title and time. Examples: 'add task', 'git push krna hai 23:00 pe', 'task add karo'.",
+          description: "Add work task to task list. Use when user wants to track work to be done.",
           parameters: {
             type: "object",
             properties: {
-              title: {
-                type: "string",
-                description: "The task title/description"
+              title: { 
+                type: "string", 
+                description: "Task title/description" 
               },
-              timeOfDay: {
-                type: "string",
+              timeOfDay: { 
+                type: "string", 
                 enum: ["morning", "afternoon", "evening"],
-                description: "Which part of day - decide from current time or user's specification"
+                description: "morning (5am-12pm), afternoon (12pm-5pm), evening (5pm-5am)"
               },
-              startTime: {
-                type: "string",
-                description: "Start time in HH:MM format (24-hour). Extract from user message."
+              startTime: { 
+                type: "string", 
+                description: "HH:MM format (24-hour). Extract if user mentions time."
               },
-              endTime: {
-                type: "string",
-                description: "End time in HH:MM format (optional)"
+              endTime: { 
+                type: "string", 
+                description: "HH:MM format (24-hour). Optional end time."
               }
             },
             required: ["title", "timeOfDay"]
@@ -805,13 +817,13 @@ app.post("/api/chat", async (req, res) => {
         type: "function",
         function: {
           name: "complete_task",
-          description: "Mark a task as completed. Use when user says they finished a task.",
+          description: "Mark task done. Use EXACT task title from pending tasks list.",
           parameters: {
             type: "object",
             properties: {
-              taskTitle: {
+              taskTitle: { 
                 type: "string",
-                description: "The title of the task to mark as complete"
+                description: "EXACT task title from the pending tasks list"
               }
             },
             required: ["taskTitle"]
@@ -822,13 +834,13 @@ app.post("/api/chat", async (req, res) => {
         type: "function",
         function: {
           name: "delete_task",
-          description: "Delete/remove a task. Use when user says 'delete it', 'remove it', 'hat jao', or similar.",
+          description: "Delete task. Use EXACT task title from tasks list.",
           parameters: {
             type: "object",
             properties: {
-              taskTitle: {
+              taskTitle: { 
                 type: "string",
-                description: "The title of the task to delete (use the most recently mentioned task if unclear)"
+                description: "EXACT task title from the tasks list"
               }
             },
             required: ["taskTitle"]
@@ -837,51 +849,116 @@ app.post("/api/chat", async (req, res) => {
       }
     ];
 
-    // ── call Groq with tools ──
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
-        ...recentMessages.map(m => ({
-          role: m.role,
-          content: m.content
-        }))
+        ...recentMessages.map(m => ({ role: m.role, content: m.content }))
       ],
       tools: tools,
       tool_choice: "auto",
       temperature: 0.7,
-      max_tokens: 300,
-      top_p: 0.9
+      max_tokens: 400
     });
 
     const response = completion.choices[0];
-    
-    // Check if AI wants to call a function
-    if (response.message.tool_calls && response.message.tool_calls.length > 0) {
-      const toolCall = response.message.tool_calls[0];
-      const functionName = toolCall.function.name;
-      const functionArgs = JSON.parse(toolCall.function.arguments);
 
-      // Return the function call to the frontend
-      return res.json({
-        type: "function_call",
-        function: functionName,
-        arguments: functionArgs,
-        message: response.message.content || ""
-      });
+    // Collect all actions
+    const actions = [];
+    if (response.message.tool_calls) {
+      for (const toolCall of response.message.tool_calls) {
+        const params = JSON.parse(toolCall.function.arguments);
+        
+        // Log for debugging
+        console.log(`🎯 AI called: ${toolCall.function.name}`, params);
+        
+        actions.push({
+          type: toolCall.function.name,
+          params: params
+        });
+      }
     }
 
-    // Normal text response
-    const reply = response.message.content || "Sorry, I couldn't respond. Try again! 🙏";
-    res.json({ type: "message", message: reply });
+    const reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
+
+    res.json({
+      type: actions.length > 0 ? "actions" : "message",
+      message: reply,
+      actions: actions
+    });
 
   } catch (error) {
-    console.error("Chat error:", error);
-    res.status(500).json({ error: "Something went wrong on the server" });
+    console.error("Advanced chat error:", error);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
+// ─── POST /api/task-reminder ────────────────────────────────
+app.post("/api/task-reminder", async (req, res) => {
+  try {
+    const { task, language } = req.body;
+
+    const messages = {
+      hinglish: `⏰ "${task.title}" 10 min mein start hone wala hai (${task.startTime} pe). Ready ho jao!`,
+      hindi: `⏰ "${task.title}" 10 मिनट में शुरू होगा (${task.startTime} पर)। तैयार हो जाओ!`,
+      english: `⏰ "${task.title}" starts in 10 minutes (at ${task.startTime}). Get ready!`
+    };
+
+    res.json({ message: messages[language] || messages.hinglish });
+  } catch (error) {
+    console.error("Task reminder error:", error);
+    res.status(500).json({ error: "Failed to generate reminder" });
+  }
+});
+
+// ─── POST /api/task-checkin ─────────────────────────────────
+app.post("/api/task-checkin", async (req, res) => {
+  try {
+    const { task, language } = req.body;
+
+    const messages = {
+      hinglish: `🤔 "${task.title}" ho gaya kya? Agar nahi hua to koi baat nahi - main help kar sakta hoon!`,
+      hindi: `🤔 "${task.title}" हो गया क्या? अगर नहीं हुआ तो कोई बात नहीं - मैं मदद कर सकता हूं!`,
+      english: `🤔 Did you finish "${task.title}"? If not, no worries - I can help!`
+    };
+
+    res.json({ message: messages[language] || messages.hinglish });
+  } catch (error) {
+    console.error("Task check-in error:", error);
+    res.status(500).json({ error: "Failed to generate check-in" });
+  }
+});
+
+// ─── POST /api/proactive-checkin ────────────────────────────
+app.post("/api/proactive-checkin", async (req, res) => {
+  try {
+    const { type, language, taskContext } = req.body;
+
+    const prompts = {
+      morning: {
+        hinglish: `Morning! Aaj ${taskContext.total} tasks hain. Kaunsa pehle karoge?`,
+        hindi: `सुप्रभात! आज ${taskContext.total} tasks हैं। कौनसा पहले करोगे?`,
+        english: `Good morning! You have ${taskContext.total} tasks today. Which one first?`
+      },
+      evening: {
+        hinglish: `Shaam ho gayi! ${taskContext.completed}/${taskContext.total} done. Bache hue tasks complete karo?`,
+        hindi: `शाम हो गयी! ${taskContext.completed}/${taskContext.total} पूरे हुए। बाकी complete करें?`,
+        english: `Evening! ${taskContext.completed}/${taskContext.total} done. Ready to finish the rest?`
+      }
+    };
+
+    const selectedLang = language || "hinglish";
+    const message = prompts[type]?.[selectedLang] || prompts.morning.hinglish;
+
+    res.json({ message });
+  } catch (error) {
+    console.error("Proactive check-in error:", error);
+    res.status(500).json({ error: "Failed to generate check-in" });
   }
 });
 
 // ─── START ──────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`🚀 Buddy server running on port ${PORT}`);
+  console.log(`⏰ Alarm system enabled`);
 });
