@@ -198,11 +198,14 @@ export default function AlarmPlanner() {
 
     return (
         <div className={`planner ${activeAlarm ? "ringing" : ""}`}>
-            <h2>⏰ Alarm Planner (12-Hour)</h2>
+            <h2>
+                <i className="fas fa-alarm-clock" style={{color: '#6c5ce7'}}></i>
+                Alarm Planner
+            </h2>
 
             {!audioEnabled && (
                 <button className="enable-sound" onClick={enableSound}>
-                    🔊 Enable Alarm Sound
+                    <i className="fas fa-volume-up"></i> Enable Alarm Sound
                 </button>
             )}
 
@@ -233,11 +236,15 @@ export default function AlarmPlanner() {
                     value={form.date}
                     onChange={e => setForm({ ...form, date: e.target.value })} />
 
-                <input
-                    placeholder="Task / Label"
-                    value={form.label}
-                    onChange={e => setForm({ ...form, label: e.target.value })}
-                />
+                <div className="input-group">
+                    <i className="fas fa-tag"></i>
+                    <input
+                        type="text"
+                        placeholder="Task / Label"
+                        value={form.label}
+                        onChange={e => setForm({ ...form, label: e.target.value })}
+                    />
+                </div>
 
                 <select value={form.repeat}
                     onChange={e => setForm({ ...form, repeat: e.target.value })}>
@@ -246,17 +253,29 @@ export default function AlarmPlanner() {
                     <option value="custom">Mon–Fri</option>
                 </select>
 
-                <button onClick={addAlarm}>Add Alarm</button>
+                <button onClick={addAlarm}>
+                    <i className="fas fa-plus-circle"></i> Add Alarm
+                </button>
             </div>
 
             <ul className="list">
                 {alarms.map(a => (
                     <li key={a.id}>
                         <span>
-                            <strong>{a.displayTime}</strong> — {a.label}
+                            <i className="fas fa-bell" style={{color: a.isActive ? '#6c5ce7' : '#b2bec3'}}></i>
+                            <strong>{a.displayTime}</strong> 
+                            {a.label && <span style={{color: '#636e72'}}>— {a.label}</span>}
                         </span>
                         <button onClick={() => dispatch({ type: "TOGGLE", payload: a.id })}>
-                            {a.isActive ? "ON" : "OFF"}
+                            {a.isActive ? (
+                                <>
+                                    <i className="fas fa-toggle-on"></i> ON
+                                </>
+                            ) : (
+                                <>
+                                    <i className="fas fa-toggle-off"></i> OFF
+                                </>
+                            )}
                         </button>
                     </li>
                 ))}
@@ -265,13 +284,23 @@ export default function AlarmPlanner() {
             {activeAlarm && (
                 <div className="overlay">
                     <div className="alarm-modal shake">
-                        <h1>⏰ WAKE UP!</h1>
+                        <h1>
+                            <i className="fas fa-bell-on" style={{marginRight: '12px'}}></i>
+                            WAKE UP!
+                        </h1>
                         <p className="time">{activeAlarm.displayTime}</p>
-                        <p className="label">{activeAlarm.label}</p>
+                        <p className="label">
+                            <i className="fas fa-sticky-note" style={{marginRight: '8px', color: '#6c5ce7'}}></i>
+                            {activeAlarm.label || "Time to wake up!"}
+                        </p>
 
                         <div className="actions">
-                            <button onClick={snoozeAlarm}>😴 Snooze</button>
-                            <button onClick={() => stopAlarm(activeAlarm.id)}>⛔ Stop</button>
+                            <button onClick={snoozeAlarm}>
+                                <i className="fas fa-snooze"></i> Snooze
+                            </button>
+                            <button onClick={() => stopAlarm(activeAlarm.id)}>
+                                <i className="fas fa-stop-circle"></i> Stop
+                            </button>
                         </div>
                     </div>
                 </div>
