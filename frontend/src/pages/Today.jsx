@@ -16,6 +16,7 @@ import AdvancedBuddy from "../components/ChatBuddy";
 
 import "./Today.css";
 import AlarmPlanner from "../components/AlarmPlanner";
+import FocusTracker from "../components/FocusTracker";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -345,6 +346,8 @@ export default function Today() {
             onDelete={deleteTask}
           />
         )}
+      <AlarmPlanner />
+      <FocusTracker />
       </main>
 
       {/* ✅ DAY LEVEL FEATURES */}
@@ -386,7 +389,6 @@ export default function Today() {
         onDeleteTask={deleteTask}
         onUpdateNotes={handleUpdateNotes}
       />
-      <AlarmPlanner />
     </div>
   );
 }
