@@ -1,0 +1,431 @@
+/* ═══════════════════════════════════════════════════════════
+   ADD TO YOUR ChatBuddy.css
+   Styles for Distraction Blocking Features
+   ═══════════════════════════════════════════════════════════ */
+
+/* Deep Work Mode Badge */
+.deep-work-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #4CAF50;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  animation: pulse-green 2s infinite;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Buddy toggle when in deep work */
+.advanced-buddy-toggle.deep-work-active {
+  border: 3px solid #4CAF50;
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+}
+
+.advanced-buddy-toggle.deep-work-active .avatar-ring {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+/* Distraction Alert Popup */
+.proactive-popup.distraction-alert {
+  border-left: 4px solid #FF9800;
+  background: linear-gradient(135deg, #fff, #FFF3E0);
+}
+
+.proactive-popup.distraction-alert .popup-icon {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.popup-suggestion {
+  font-size: 13px;
+  color: #666;
+  font-style: italic;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(255, 152, 0, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #FF9800;
+}
+
+/* Alert Messages in Chat */
+.message.assistant.alert-message {
+  border-left: 4px solid #FF9800;
+  background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+  animation: slideInLeft 0.3s ease;
+}
+
+.message.assistant[data-alert-type="distraction"] {
+  border-left-color: #F44336;
+}
+
+/* Deep Work Messages */
+.message.assistant.deep-work-message {
+  border-left: 4px solid #4CAF50;
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  font-weight: 500;
+}
+
+/* Focus Intervention Overlay Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Distraction Stats Badge */
+.distraction-stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  font-size: 11px;
+  color: #666;
+  margin-left: 8px;
+}
+
+.distraction-stats-badge.warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: #F57C00;
+}
+
+.distraction-stats-badge.danger {
+  background: rgba(244, 67, 54, 0.1);
+  color: #D32F2F;
+}
+
+/* Deep Work Timer */
+.deep-work-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  animation: pulse-timer 2s infinite;
+}
+
+@keyframes pulse-timer {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+  }
+}
+
+.deep-work-timer-icon {
+  font-size: 20px;
+  margin-right: 8px;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Focus Mode Overlay (when deep work active) */
+.focus-mode-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4CAF50, #45a049, #4CAF50);
+  background-size: 200% 100%;
+  animation: gradient-slide 3s linear infinite;
+  z-index: 9999;
+}
+
+@keyframes gradient-slide {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Distraction Level Indicator Animations */
+.distraction-level-high {
+  animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .popup-suggestion {
+    font-size: 12px;
+    padding: 10px;
+  }
+  
+  .deep-work-timer {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+}/* ═══════════════════════════════════════════════════════════
+   ADD TO YOUR ChatBuddy.css
+   Styles for Distraction Blocking Features
+   ═══════════════════════════════════════════════════════════ */
+
+/* Deep Work Mode Badge */
+.deep-work-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #4CAF50;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  animation: pulse-green 2s infinite;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Buddy toggle when in deep work */
+.advanced-buddy-toggle.deep-work-active {
+  border: 3px solid #4CAF50;
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+}
+
+.advanced-buddy-toggle.deep-work-active .avatar-ring {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+/* Distraction Alert Popup */
+.proactive-popup.distraction-alert {
+  border-left: 4px solid #FF9800;
+  background: linear-gradient(135deg, #fff, #FFF3E0);
+}
+
+.proactive-popup.distraction-alert .popup-icon {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.popup-suggestion {
+  font-size: 13px;
+  color: #666;
+  font-style: italic;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(255, 152, 0, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #FF9800;
+}
+
+/* Alert Messages in Chat */
+.message.assistant.alert-message {
+  border-left: 4px solid #FF9800;
+  background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+  animation: slideInLeft 0.3s ease;
+}
+
+.message.assistant[data-alert-type="distraction"] {
+  border-left-color: #F44336;
+}
+
+/* Deep Work Messages */
+.message.assistant.deep-work-message {
+  border-left: 4px solid #4CAF50;
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  font-weight: 500;
+}
+
+/* Focus Intervention Overlay Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Distraction Stats Badge */
+.distraction-stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  font-size: 11px;
+  color: #666;
+  margin-left: 8px;
+}
+
+.distraction-stats-badge.warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: #F57C00;
+}
+
+.distraction-stats-badge.danger {
+  background: rgba(244, 67, 54, 0.1);
+  color: #D32F2F;
+}
+
+/* Deep Work Timer */
+.deep-work-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  animation: pulse-timer 2s infinite;
+}
+
+@keyframes pulse-timer {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+  }
+}
+
+.deep-work-timer-icon {
+  font-size: 20px;
+  margin-right: 8px;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Focus Mode Overlay (when deep work active) */
+.focus-mode-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4CAF50, #45a049, #4CAF50);
+  background-size: 200% 100%;
+  animation: gradient-slide 3s linear infinite;
+  z-index: 9999;
+}
+
+@keyframes gradient-slide {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Distraction Level Indicator Animations */
+.distraction-level-high {
+  animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .popup-suggestion {
+    font-size: 12px;
+    padding: 10px;
+  }
+  
+  .deep-work-timer {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+}
