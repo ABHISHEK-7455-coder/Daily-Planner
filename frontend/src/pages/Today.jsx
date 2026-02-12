@@ -16,7 +16,7 @@ import AdvancedBuddy from "../components/ChatBuddy";
 
 import "./Today.css";
 import AlarmPlanner from "../components/AlarmPlanner";
-import FocusTracker from "../components/FocusTracker";
+// import FocusTracker from "../components/FocusTracker";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -178,18 +178,68 @@ export default function Today() {
         timeOfDay,
         startTime,
         endTime,
+
+        // 🆕 TRACKING FIELDS
+        status: "idle",
+        startedAt: null,
+        completedAt: null,
+        actualTime: null,
       },
       ...prev,
     ]);
   };
 
-  const toggleTask = (id) => {
+  const startTask = (id) => {
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === id ? { ...t, completed: !t.completed } : t
+        t.id === id
+          ? {
+            ...t,
+            status: "running",
+            startedAt: new Date().toISOString(),
+          }
+          : t
       )
     );
   };
+
+  const toggleTask = (id) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+
+        // if marking COMPLETE
+        if (!t.completed) {
+          const now = new Date();
+          let actualMinutes = null;
+
+          if (t.startedAt) {
+            const start = new Date(t.startedAt);
+            actualMinutes = Math.floor((now - start) / 60000);
+          }
+
+          return {
+            ...t,
+            completed: true,
+            status: "done",
+            completedAt: now.toISOString(),
+            actualTime: actualMinutes,
+          };
+        }
+
+        // if user unchecks (reset)
+        return {
+          ...t,
+          completed: false,
+          status: "idle",
+          startedAt: null,
+          completedAt: null,
+          actualTime: null,
+        };
+      })
+    );
+  };
+
 
   const deleteTask = (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
@@ -334,6 +384,7 @@ export default function Today() {
                 onEdit={editTask}
                 onMove={moveTask}
                 onSnooze={snoozeTask}
+                onStart={startTask}          // 🆕 ADD
                 selectedDate={dayKey}
               />
             </div>
@@ -346,8 +397,8 @@ export default function Today() {
             onDelete={deleteTask}
           />
         )}
-      <AlarmPlanner />
-      <FocusTracker />
+        <AlarmPlanner />
+        {/* <FocusTracker /> */}
       </main>
 
       {/* ✅ DAY LEVEL FEATURES */}
