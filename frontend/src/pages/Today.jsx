@@ -12,10 +12,11 @@ import DailyNotes from "../components/DailyNotes";
 import PushNotifications from "../components/PushNotifications";
 import DayCalendar from "../components/DayCalendar";
 import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
-import AdvancedBuddy from "../components/ChatBuddy";
+// import AdvancedBuddy from "../components/ChatBuddy";
 
 import "./Today.css";
 import AlarmPlanner from "../components/AlarmPlanner";
+import AdvancedBuddy from "../components/Chatbuddy";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -177,16 +178,64 @@ export default function Today() {
         timeOfDay,
         startTime,
         endTime,
+
+        // 🆕 TRACKING FIELDS
+        status: "idle",
+        startedAt: null,
+        completedAt: null,
+        actualTime: null,
       },
       ...prev,
     ]);
   };
+  const startTask = (id) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+            ...t,
+            status: "running",
+            startedAt: new Date().toISOString(),
+          }
+          : t
+      )
+    );
+  };
 
   const toggleTask = (id) => {
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, completed: !t.completed } : t
-      )
+      prev.map((t) => {
+        if (t.id !== id) return t;
+
+        // if marking COMPLETE
+        if (!t.completed) {
+          const now = new Date();
+          let actualMinutes = null;
+
+          if (t.startedAt) {
+            const start = new Date(t.startedAt);
+            actualMinutes = Math.floor((now - start) / 60000);
+          }
+
+          return {
+            ...t,
+            completed: true,
+            status: "done",
+            completedAt: now.toISOString(),
+            actualTime: actualMinutes,
+          };
+        }
+
+        // if user unchecks (reset)
+        return {
+          ...t,
+          completed: false,
+          status: "idle",
+          startedAt: null,
+          completedAt: null,
+          actualTime: null,
+        };
+      })
     );
   };
 
@@ -272,7 +321,7 @@ export default function Today() {
       dailyNotesRef.current.updateFromVoice(content, mode);
     }
   };
-
+ 
   return (
     <div className="today-container">
       <PushNotifications />
@@ -325,6 +374,7 @@ export default function Today() {
             </div>
 
             <div className="bucket-content">
+              
               <TaskSection
                 title={activeBucket.charAt(0).toUpperCase() + activeBucket.slice(1)}
                 tasks={getFilteredTasks(activeBucket)}
@@ -333,6 +383,7 @@ export default function Today() {
                 onEdit={editTask}
                 onMove={moveTask}
                 onSnooze={snoozeTask}
+                onStart={startTask}          // 🆕 ADD
                 selectedDate={dayKey}
               />
             </div>

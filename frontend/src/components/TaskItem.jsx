@@ -3,19 +3,29 @@ import { useState } from "react";
 import TaskGuideModal from "./TaskGuideModal";
 import "./TaskItem.css";
 
+// 🆕 format ISO time → 8:50 PM
+const formatClockTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+};
+
 export default function TaskItem({
     task,
     onToggle,
     onDelete,
     onEdit,
     onMove,
-    onSnooze
+    onSnooze,
+    onStart            // 🆕 NEW PROP
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(task.title);
     const [showMoveOptions, setShowMoveOptions] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
-
 
     const sections = ["morning", "afternoon", "evening"]
         .filter(s => s !== task.timeOfDay);
@@ -52,7 +62,6 @@ export default function TaskItem({
                                 {task.title}
                             </span>
 
-                            {/* 💤 Snoozed Badge */}
                             {task.snoozed && !task.completed && (
                                 <span className="task-item-snoozed-badge">
                                     Snoozed
@@ -65,12 +74,38 @@ export default function TaskItem({
                                 {task.startTime} – {task.endTime}
                             </span>
                         )}
+
+                        {/* 🆕 TRACKING STATUS */}
+                        {task.status === "running" && (
+                            <span className="task-item-live">⏱ In Progress</span>
+                        )}
+
+                        {task.status === "done" && task.actualTime !== null && (
+                            <span className="task-item-live">
+                                ✅ Completed in {task.actualTime} min
+                                {task.startedAt && task.completedAt && (
+                                    <> ({formatClockTime(task.startedAt)} – {formatClockTime(task.completedAt)})</>
+                                )}
+                            </span>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* RIGHT ACTIONS */}
             <div className="task-item-actions">
+
+                {/* 🆕 START BUTTON */}
+                {!task.completed && task.status !== "running" && (
+                    <button
+                        className="task-item-start-btn"
+                        onClick={() => onStart(task.id)}
+                        title="Start Task"
+                    >
+                        ▶ Start
+                    </button>
+                )}
+
                 <button
                     className="task-item-ai-btn"
                     title="How to do this?"
@@ -91,7 +126,6 @@ export default function TaskItem({
                     <button
                         className="task-item-move-btn"
                         onClick={() => setShowMoveOptions(prev => !prev)}
-                        title="Move to another section"
                     >
                         ↔️
                     </button>
@@ -101,7 +135,6 @@ export default function TaskItem({
                             {sections.map(sec => (
                                 <button
                                     key={sec}
-                                    className="task-item-move-option-btn"
                                     onClick={() => {
                                         onMove(task.id, sec);
                                         setShowMoveOptions(false);
@@ -118,23 +151,16 @@ export default function TaskItem({
                     className="task-item-delete-btn"
                     onClick={() => onDelete(task.id)}
                 >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path
-                            d="M12 4L4 12M4 4L12 12"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                        />
-                    </svg>
+                    ✕
                 </button>
             </div>
+
             {showGuide && (
                 <TaskGuideModal
                     task={task}
                     onClose={() => setShowGuide(false)}
                 />
             )}
-
         </div>
     );
 }
