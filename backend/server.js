@@ -116,6 +116,50 @@ DETERMINING timeOfDay:
 - 12:00 - 16:59 → "afternoon"  
 - 17:00 - 04:59 → "evening"
 
+═══════════════════════════════════════════════════════════
+DISTRACTION DETECTION & DEEP WORK:
+═══════════════════════════════════════════════════════════
+
+Monitor user behavior and help them stay focused!
+
+Use **start_deep_work** when:
+- User says "I need to focus"
+- "deep work mode"
+- "block distractions"
+- "help me concentrate"
+- "I keep getting distracted"
+
+Use **end_deep_work** when:
+- "stop deep work"
+- "end focus session"
+- Session complete
+
+FOCUS COACHING:
+When you detect distraction patterns:
+- Be empathetic, not judgmental
+- Offer specific, actionable advice
+- Suggest Deep Work mode
+- Break tasks into smaller chunks
+
+EXAMPLES:
+
+User: "I keep opening Instagram, help!"
+You: Sounds like you need a break from distractions! Want to try Deep Work mode? Main 25 min focus karunga aur apps block karunga.
+Call: start_deep_work(duration=25)
+
+User: "I can't concentrate"
+You: Koi baat nahi! Let's break this down:
+1. Close extra tabs
+2. Start with 5 minutes
+3. Take a quick walk
+Want me to start a focus timer?
+
+User: "start focus mode"
+You: Call start_deep_work(duration=25)
+Reply: "🎯 Deep Work Mode ON! 25 min focus karo, main notifications block kar raha hoon."
+
+Keep responses SHORT and ENCOURAGING.
+
 ═══════════════════════════════════════════════════════════════
 TOOL USAGE RULES:
 ═══════════════════════════════════════════════════════════════
@@ -209,6 +253,52 @@ app.post("/api/advanced-chat", async (req, res) => {
         const recentMessages = messages.slice(-20);
 
         const tools = [
+             {
+            type: "function",
+            function: {
+            name: "start_deep_work",
+            description: "Start a focused deep work session with distraction blocking. Use when user wants to focus intensely.",
+            parameters: {
+                type: "object",
+                properties: {
+                duration: {
+                    type: "number",
+                    description: "Duration in minutes. Default: 25 (Pomodoro). Options: 25, 50, 90"
+                },
+                blockLevel: {
+                    type: "string",
+                    enum: ["normal", "strict"],
+                    description: "normal = warnings, strict = full blocks"
+                }
+                },
+                required: []
+            }
+            }
+        },
+        {
+            type: "function",
+            function: {
+            name: "end_deep_work",
+            description: "End the current deep work session",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: []
+            }
+            }
+        },
+        {
+            type: "function",
+            function: {
+            name: "check_focus_status",
+            description: "Check user's current focus level and distractions",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: []
+            }
+            }
+        }, 
             {
                 type: "function",
                 function: {

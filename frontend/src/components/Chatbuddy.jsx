@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import useDistractionMonitor, { DistractionIndicator } from './Distractionmonitor';
 import "./ChatBuddy.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
@@ -28,11 +29,25 @@ export default function AdvancedBuddy({
   const [taskReminders, setTaskReminders] = useState(new Set());
   const [taskCheckIns, setTaskCheckIns] = useState(new Set());
   
+  // 🎯 NEW: Distraction blocking states
+  const [isDeepWorkMode, setIsDeepWorkMode] = useState(false);
+  const [showDistractionPopup, setShowDistractionPopup] = useState(false);
+  const [distractionAlert, setDistractionAlert] = useState(null);
+  const [focusSessionStart, setFocusSessionStart] = useState(null);
+  const [deepWorkTimer, setDeepWorkTimer] = useState(null);
+  
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const interimTranscriptRef = useRef("");
   const reminderIntervalRef = useRef(null);
   const checkInIntervalRef = useRef(null);
+
+  // 🎯 NEW: Distraction monitoring
+  const distractionStats = useDistractionMonitor({
+    onDistractionDetected: handleDistractionDetected,
+    isDeepWorkMode,
+    language
+  });
 
   // Scroll to bottom
   useEffect(() => {
@@ -42,6 +57,27 @@ export default function AdvancedBuddy({
   useEffect(() => {
     localStorage.setItem("buddy-language", language);
   }, [language]);
+
+  // 🎯 NEW: Deep work timer countdown
+  useEffect(() => {
+    if (!isDeepWorkMode || !focusSessionStart) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - focusSessionStart;
+      const duration = parseInt(localStorage.getItem('deep-work-duration') || '25') * 60 * 1000;
+      const remaining = Math.max(0, duration - elapsed);
+      
+      if (remaining === 0) {
+        endDeepWork();
+      } else {
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        setDeepWorkTimer(`${minutes}:${String(seconds).padStart(2, '0')}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isDeepWorkMode, focusSessionStart]);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -356,6 +392,167 @@ export default function AdvancedBuddy({
     return { total, completed, pending, pendingTasks, completedTasks };
   };
 
+  // 🎯 NEW: DISTRACTION DETECTION HANDLER
+  function handleDistractionDetected(alert) {
+    console.log("🚨 Distraction detected:", alert);
+    
+    setDistractionAlert(alert);
+    setShowDistractionPopup(true);
+
+    setMessages(prev => [...prev, {
+      role: "assistant",
+      content: alert.message,
+      timestamp: new Date(),
+      isAlert: true,
+      alertType: 'distraction'
+    }]);
+
+    playNotificationSound();
+
+    if (isDeepWorkMode && alert.severity === 'high') {
+      setTimeout(() => {
+        showFullScreenIntervention(alert);
+      }, 1000);
+    }
+  }
+
+  // 🎯 NEW: DEEP WORK MODE
+  const startDeepWork = async (duration = 25) => {
+    setIsDeepWorkMode(true);
+    setFocusSessionStart(Date.now());
+    localStorage.setItem('deep-work-duration', duration.toString());
+
+    const messages = {
+      hindi: `🎯 Deep Work Mode शुरू! ${duration} मिनट focus करें।`,
+      english: `🎯 Deep Work Mode started! Focus for ${duration} minutes.`,
+      hinglish: `🎯 Deep Work Mode shuru! ${duration} min focus karo.`
+    };
+
+    setMessages(prev => [...prev, {
+      role: "assistant",
+      content: messages[language] || messages.hinglish,
+      timestamp: new Date(),
+      isDeepWork: true
+    }]);
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+  };
+
+  const endDeepWork = () => {
+    const duration = focusSessionStart 
+      ? Math.round((Date.now() - focusSessionStart) / 60000)
+      : 0;
+
+    setIsDeepWorkMode(false);
+    setFocusSessionStart(null);
+    setDeepWorkTimer(null);
+    localStorage.removeItem('deep-work-duration');
+
+    const messages = {
+      hindi: `✅ Deep Work complete! ${duration} मिनट productive रहे। Great job! 🎉`,
+      english: `✅ Deep Work complete! ${duration} minutes of productivity. Great job! 🎉`,
+      hinglish: `✅ Deep Work complete! ${duration} min productive rahe. Great job! 🎉`
+    };
+
+    setMessages(prev => [...prev, {
+      role: "assistant",
+      content: messages[language] || messages.hinglish,
+      timestamp: new Date(),
+      isDeepWork: true
+    }]);
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification("🎉 Deep Work Complete!", {
+        body: `${duration} minutes of focused work! Well done!`,
+        icon: "/icon-192x192.png",
+        vibrate: [200, 100, 200]
+      });
+    }
+  };
+
+  const showFullScreenIntervention = (alert) => {
+    const overlay = document.createElement('div');
+    overlay.id = 'focus-intervention';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s ease;
+    `;
+
+    overlay.innerHTML = `
+      <div style="
+        background: white;
+        padding: 40px;
+        border-radius: 16px;
+        max-width: 500px;
+        text-align: center;
+      ">
+        <div style="font-size: 64px; margin-bottom: 20px;">🧘‍♂️</div>
+        <h2 style="margin: 0 0 16px 0; color: #333;">
+          ${language === 'hindi' ? 'रुकिए!' : language === 'english' ? 'Hold On!' : 'Rukiye!'}
+        </h2>
+        <p style="font-size: 18px; color: #666; margin-bottom: 24px;">
+          ${alert.message}
+        </p>
+        <p style="font-size: 14px; color: #999; margin-bottom: 32px;">
+          ${alert.suggestion}
+        </p>
+        <button onclick="document.getElementById('focus-intervention').remove()" style="
+          padding: 12px 24px;
+          background: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          cursor: pointer;
+          font-weight: bold;
+        ">
+          ${language === 'hindi' ? 'वापस काम पर' : language === 'english' ? 'Back to Work' : 'Wapas Kaam Par'}
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      if (document.getElementById('focus-intervention')) {
+        overlay.remove();
+      }
+    }, 10000);
+  };
+
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.log("Audio not available");
+    }
+  };
+
   const handleSendMessage = async (text) => {
     if (!text.trim()) return;
 
@@ -386,14 +583,12 @@ export default function AdvancedBuddy({
 
       const data = await response.json();
 
-      // Handle actions
       if (data.actions && data.actions.length > 0) {
         for (const action of data.actions) {
           await handleAction(action);
         }
       }
 
-      // Add assistant response
       setMessages(prev => [...prev, {
         role: "assistant",
         content: data.message,
@@ -416,6 +611,16 @@ export default function AdvancedBuddy({
     console.log("🎯 Handling action:", action);
     
     switch (action.type) {
+      // 🎯 NEW: Deep work actions
+      case "start_deep_work":
+        const duration = action.params?.duration || 25;
+        startDeepWork(duration);
+        break;
+      
+      case "end_deep_work":
+        endDeepWork();
+        break;
+      
       case "set_alarm":
         console.log("⏰ Setting alarm:", action.params);
         
@@ -442,7 +647,7 @@ export default function AdvancedBuddy({
         
         const reminderMsg = {
           hindi: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`,
-          english: `⏰ Reminder set for ${action.params.time} - you'll get a notification!`,
+          english: `⏰ Reminder set for ${action.params.time}!`,
           hinglish: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`
         };
         
@@ -534,7 +739,6 @@ export default function AdvancedBuddy({
       
       case "delete_task":
         console.log("🔍 Searching for task to delete:", action.params.taskTitle);
-        console.log("📋 Available tasks:", tasks.map(t => t.title));
         
         let taskToDelete = tasks.find(t => 
           t.title.toLowerCase() === action.params.taskTitle.toLowerCase()
@@ -562,7 +766,6 @@ export default function AdvancedBuddy({
         
         if (!taskToDelete && tasks.length > 0) {
           taskToDelete = tasks[tasks.length - 1];
-          console.log("⚠️ Using last task as fallback:", taskToDelete.title);
         }
         
         if (taskToDelete) {
@@ -578,18 +781,6 @@ export default function AdvancedBuddy({
           setMessages(prev => [...prev, {
             role: "assistant",
             content: deleteMsg[language] || deleteMsg.hinglish,
-            timestamp: new Date()
-          }]);
-        } else {
-          const notFoundMsg = {
-            hindi: `Koi task nahi mila delete karne ke liye.`,
-            english: `No task found to delete.`,
-            hinglish: `Koi task nahi mila delete karne ke liye.`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: notFoundMsg[language] || notFoundMsg.hinglish,
             timestamp: new Date()
           }]);
         }
@@ -678,8 +869,6 @@ export default function AdvancedBuddy({
             ],
             data: { url: '/' }
           });
-          
-          console.log("✅ Service worker notification sent");
         } catch (error) {
           console.error("Service worker notification failed:", error);
           new Notification('AI Buddy Reminder ⏰', {
@@ -687,8 +876,6 @@ export default function AdvancedBuddy({
             icon: '/icon-192x192.png'
           });
         }
-      } else {
-        console.log("Notification permission denied");
       }
     }
   };
@@ -711,16 +898,16 @@ export default function AdvancedBuddy({
   const getGreeting = () => {
     if (voiceMode === "notes") {
       const greetings = {
-        hindi: "डेली नोट्स मोड। अपने विचार बोलें या लिखें!",
-        english: "Daily Notes Mode. Speak or write your thoughts!",
-        hinglish: "Daily Notes Mode. Apne thoughts bolo ya likho!"
+        hindi: "📝 डेली नोट्स मोड। अपने विचार बोलें या लिखें!",
+        english: "📝 Daily Notes Mode. Speak or write your thoughts!",
+        hinglish: "📝 Daily Notes Mode. Apne thoughts bolo ya likho!"
       };
       return greetings[language] || greetings.hinglish;
     } else if (voiceMode === "tasks") {
       const greetings = {
-        hindi: "टास्क मोड। टास्क जोड़ें, पूरा करें, या मैनेज करें!",
-        english: "Tasks Mode. Add, complete, or manage your tasks!",
-        hinglish: "Tasks Mode. Add karo, complete karo, ya manage karo!"
+        hindi: "✅ टास्क मोड। टास्क जोड़ें, पूरा करें, या मैनेज करें!",
+        english: "✅ Tasks Mode. Add, complete, or manage your tasks!",
+        hinglish: "✅ Tasks Mode. Add karo, complete karo, ya manage karo!"
       };
       return greetings[language] || greetings.hinglish;
     } else {
@@ -736,10 +923,10 @@ export default function AdvancedBuddy({
   const getInputPlaceholder = () => {
     if (inputMode === "voice") {
       return language === "hindi" 
-        ? "बोलें या टाइप करें..." 
+        ? "🎤 बोलें या टाइप करें..." 
         : language === "english"
-        ? "Speak or type..."
-        : "Bolo ya type karo...";
+        ? "🎤 Speak or type..."
+        : "🎤 Bolo ya type karo...";
     }
     return language === "hindi"
       ? "यहां टाइप करें..."
@@ -750,27 +937,74 @@ export default function AdvancedBuddy({
 
   return (
     <>
-      {/* Proactive Popup */}
-      {showProactivePopup && (
+      {/* 🎯 NEW: Focus Mode Top Bar */}
+      {isDeepWorkMode && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'linear-gradient(90deg, #4CAF50, #45a049, #4CAF50)',
+          backgroundSize: '200% 100%',
+          animation: 'gradient-slide 3s linear infinite',
+          zIndex: 9999
+        }} />
+      )}
+
+      {/* Proactive/Distraction Popup */}
+      {(showProactivePopup || showDistractionPopup) && (
         <div className="proactive-popup-overlay">
-          <div className="proactive-popup">
+          <div className={`proactive-popup ${showDistractionPopup ? 'distraction-alert' : ''}`}>
             <button 
               className="popup-close"
-              onClick={() => setShowProactivePopup(false)}
+              onClick={() => {
+                setShowProactivePopup(false);
+                setShowDistractionPopup(false);
+              }}
             >
               ×
             </button>
             
             <div className="popup-icon-container">
               <div className="popup-icon">
-                <i className="fas fa-heart"></i>
+                {showDistractionPopup ? (
+                  <i className="fas fa-exclamation-triangle"></i>
+                ) : (
+                  <i className="fas fa-heart"></i>
+                )}
               </div>
             </div>
             
-            <p className="popup-message">{proactiveMessage}</p>
+            <p className="popup-message">
+              {showDistractionPopup ? distractionAlert?.message : proactiveMessage}
+            </p>
+            
+            {/* 🎯 NEW: Suggestion for distraction alerts */}
+            {showDistractionPopup && distractionAlert?.suggestion && (
+              <p className="popup-suggestion">{distractionAlert.suggestion}</p>
+            )}
             
             <div className="popup-actions">
-              {proactiveActions.length > 0 ? (
+              {showDistractionPopup ? (
+                <>
+                  <button 
+                    className="popup-action-btn primary"
+                    onClick={() => {
+                      setShowDistractionPopup(false);
+                      startDeepWork(25);
+                    }}
+                  >
+                    <i className="fas fa-brain"></i> {language === "hindi" ? "Deep Work" : language === "english" ? "Deep Work" : "Deep Work"}
+                  </button>
+                  <button 
+                    className="popup-action-btn secondary"
+                    onClick={() => setShowDistractionPopup(false)}
+                  >
+                    <i className="fas fa-check"></i> OK
+                  </button>
+                </>
+              ) : proactiveActions.length > 0 ? (
                 proactiveActions.map((action, idx) => (
                   <button
                     key={idx}
@@ -806,10 +1040,15 @@ export default function AdvancedBuddy({
 
       {/* Floating Buddy Button */}
       <button
-        className={`advanced-buddy-toggle ${isListening ? 'listening' : ''}`}
+        className={`advanced-buddy-toggle ${isListening ? 'listening' : ''} ${isDeepWorkMode ? 'deep-work-active' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Toggle AI Buddy"
       >
+        {/* 🎯 NEW: Deep work badge */}
+        {isDeepWorkMode && (
+          <div className="deep-work-badge"></div>
+        )}
+        
         <div className="buddy-avatar">
           <div className="avatar-face">
             {isListening ? (
@@ -842,6 +1081,66 @@ export default function AdvancedBuddy({
               </div>
             </div>
             <button className="close-btn" onClick={() => setIsOpen(false)}>×</button>
+          </div>
+
+          {/* 🎯 NEW: Distraction & Deep Work Panel */}
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--buddy-border)' }}>
+            <DistractionIndicator level={distractionStats.distractionLevel} language={language} />
+            
+            {isDeepWorkMode && deepWorkTimer && (
+              <div style={{
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg, #4CAF50, #45a049)',
+                color: 'white',
+                borderRadius: '8px',
+                fontWeight: 'bold'
+              }}>
+                <i className="fas fa-hourglass-half" style={{marginRight: '8px'}}></i>
+                {deepWorkTimer}
+              </div>
+            )}
+            
+            <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+              {!isDeepWorkMode ? (
+                <button 
+                  onClick={() => startDeepWork(25)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    background: '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  <i className="fas fa-brain"></i> {language === "hindi" ? "Deep Work" : "Deep Work"}
+                </button>
+              ) : (
+                <button 
+                  onClick={endDeepWork}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    background: '#f44336',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  <i className="fas fa-stop"></i> {language === "hindi" ? "बंद करें" : language === "english" ? "End" : "Band Karo"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Language Selection */}
@@ -902,12 +1201,14 @@ export default function AdvancedBuddy({
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`message ${msg.role} ${msg.interim ? 'interim' : ''} ${msg.isReminder ? 'reminder-message' : ''} ${msg.isCheckIn ? 'checkin-message' : ''}`}
+                className={`message ${msg.role} ${msg.interim ? 'interim' : ''} ${msg.isReminder ? 'reminder-message' : ''} ${msg.isCheckIn ? 'checkin-message' : ''} ${msg.isDeepWork ? 'deep-work-message' : ''} ${msg.isAlert ? 'alert-message' : ''}`}
               >
                 <div className="message-content">
                   {msg.interim && <span className="voice-badge"><i className="fas fa-microphone"></i> listening...</span>}
                   {msg.isReminder && <span className="reminder-badge"><i className="fas fa-bell"></i> Reminder</span>}
                   {msg.isCheckIn && <span className="checkin-badge"><i className="fas fa-question-circle"></i> Check-in</span>}
+                  {msg.isDeepWork && <span className="reminder-badge"><i className="fas fa-brain"></i> Deep Work</span>}
+                  {msg.isAlert && <span className="reminder-badge"><i className="fas fa-exclamation-triangle"></i> Alert</span>}
                   {msg.content}
                 </div>
                 <div className="message-time">
@@ -950,7 +1251,6 @@ export default function AdvancedBuddy({
               </div>
             )}
 
-            {/* Input Mode Toggle */}
             <div className="input-mode-toggle">
               <button
                 className={inputMode === "text" ? "active" : ""}
@@ -969,7 +1269,6 @@ export default function AdvancedBuddy({
               </button>
             </div>
 
-            {/* Text Input Form */}
             {inputMode === "text" && (
               <form className="text-input-form" onSubmit={handleTextSubmit}>
                 <input
@@ -985,7 +1284,6 @@ export default function AdvancedBuddy({
               </form>
             )}
 
-            {/* Voice Input Control */}
             {inputMode === "voice" && (
               <div className="voice-input-control">
                 <button
@@ -1005,7 +1303,6 @@ export default function AdvancedBuddy({
                   )}
                 </button>
                 
-                {/* Manual text input while in voice mode */}
                 <form className="text-input-form" onSubmit={handleTextSubmit}>
                   <input
                     type="text"
