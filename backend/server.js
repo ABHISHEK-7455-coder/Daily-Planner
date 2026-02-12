@@ -54,7 +54,13 @@ app.post("/api/subscribe", async (req, res) => {
 // ─── SYSTEM PROMPT BUILDER ─────────────────────────────────
 function buildSystemPrompt(language, taskContext) {
     const { total, completed, pending, pendingTasks, completedTasks } = taskContext;
-
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const currentDay = String(currentDate.getDate()).padStart(2, '0');
+    const tomorrowDate = new Date(currentDate);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrow = tomorrowDate.toISOString().slice(0, 10);
     const langGuide = {
         hindi: {
             tone: "Simple, friendly Hindi. Avoid heavy words.",
@@ -98,7 +104,62 @@ ${taskSnapshot}
 
 CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour)
 CURRENT DATE: ${new Date().toLocaleDateString()}
+CURRENT DATE: ${currentYear}-${currentMonth}-${currentDay}
+TOMORROW: ${tomorrow}
 
+═══════════════════════════════════════════════════════════════
+ALARM TOOL USAGE - CRITICAL RULES:
+═══════════════════════════════════════════════════════════════
+
+Use set_alarm for:
+- "set alarm 5 AM" 
+- "23 feb meeting alarm"
+- "wake me up at 7"
+- "daily alarm 6:30 am"
+
+PARAMETER RULES:
+1. time: ALWAYS required, HH:MM 24-hour format
+2. date: If mentioned → "YYYY-MM-DD", if NOT mentioned → "" (empty string, NOT null!)
+3. label: Extract from user's words, or use "Alarm"
+4. repeat: "once" (default), "daily", or "custom"
+
+TIME CONVERSION:
+"5 AM" → "05:00"
+"5:30 PM" → "17:30"  
+"11 PM" → "23:00"
+"midnight" → "00:00"
+"noon" → "12:00"
+
+DATE CONVERSION:
+"23 feb" → "${currentYear}-02-23"
+"february 18" → "${currentYear}-02-18"
+"tomorrow" → "${tomorrow}"
+"today" → "${currentYear}-${currentMonth}-${currentDay}"
+NO DATE MENTIONED → "" (empty string)
+
+EXAMPLES:
+
+User: "set alarm for 5 AM"
+→ set_alarm(time="05:00", date="", label="Alarm", repeat="once")
+
+User: "23 feb meeting alarm laga do"
+→ set_alarm(time="09:00", date="${currentYear}-02-23", label="meeting", repeat="once")
+
+User: "18 february friend birthday 8 baje"
+→ set_alarm(time="08:00", date="${currentYear}-02-18", label="friend birthday", repeat="once")
+
+User: "wake me up at 7:30 tomorrow"
+→ set_alarm(time="07:30", date="${tomorrow}", label="wake up", repeat="once")
+
+User: "daily 6 am alarm"
+→ set_alarm(time="06:00", date="", label="daily alarm", repeat="daily")
+
+User: "9:35 pe alarm set karo"
+→ set_alarm(time="09:35", date="", label="Alarm", repeat="once")
+
+CRITICAL: NEVER send null! Always use empty string "" if no date.
+
+Keep replies SHORT (1-2 sentences).
 ═══════════════════════════════════════════════════════════════
 CRITICAL TIME EXTRACTION RULES:
 ═══════════════════════════════════════════════════════════════
@@ -115,50 +176,6 @@ DETERMINING timeOfDay:
 - 05:00 - 11:59 → "morning"
 - 12:00 - 16:59 → "afternoon"  
 - 17:00 - 04:59 → "evening"
-
-═══════════════════════════════════════════════════════════
-DISTRACTION DETECTION & DEEP WORK:
-═══════════════════════════════════════════════════════════
-
-Monitor user behavior and help them stay focused!
-
-Use **start_deep_work** when:
-- User says "I need to focus"
-- "deep work mode"
-- "block distractions"
-- "help me concentrate"
-- "I keep getting distracted"
-
-Use **end_deep_work** when:
-- "stop deep work"
-- "end focus session"
-- Session complete
-
-FOCUS COACHING:
-When you detect distraction patterns:
-- Be empathetic, not judgmental
-- Offer specific, actionable advice
-- Suggest Deep Work mode
-- Break tasks into smaller chunks
-
-EXAMPLES:
-
-User: "I keep opening Instagram, help!"
-You: Sounds like you need a break from distractions! Want to try Deep Work mode? Main 25 min focus karunga aur apps block karunga.
-Call: start_deep_work(duration=25)
-
-User: "I can't concentrate"
-You: Koi baat nahi! Let's break this down:
-1. Close extra tabs
-2. Start with 5 minutes
-3. Take a quick walk
-Want me to start a focus timer?
-
-User: "start focus mode"
-You: Call start_deep_work(duration=25)
-Reply: "🎯 Deep Work Mode ON! 25 min focus karo, main notifications block kar raha hoon."
-
-Keep responses SHORT and ENCOURAGING.
 
 ═══════════════════════════════════════════════════════════════
 TOOL USAGE RULES:
@@ -253,52 +270,36 @@ app.post("/api/advanced-chat", async (req, res) => {
         const recentMessages = messages.slice(-20);
 
         const tools = [
-             {
-            type: "function",
-            function: {
-            name: "start_deep_work",
-            description: "Start a focused deep work session with distraction blocking. Use when user wants to focus intensely.",
-            parameters: {
-                type: "object",
-                properties: {
-                duration: {
-                    type: "number",
-                    description: "Duration in minutes. Default: 25 (Pomodoro). Options: 25, 50, 90"
-                },
-                blockLevel: {
-                    type: "string",
-                    enum: ["normal", "strict"],
-                    description: "normal = warnings, strict = full blocks"
-                }
-                },
-                required: []
-            }
-            }
+              {
+    type: "function",
+    function: {
+      name: "set_alarm",
+      description: "Set an alarm with sound and vibration. For wake-up alarms, meeting reminders, birthday alerts, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          time: {
+            type: "string",
+            description: "Time in HH:MM 24-hour format (e.g., '05:00', '17:30', '23:00')"
+          },
+          date: {
+            type: "string",
+            description: "Date in YYYY-MM-DD format (e.g., '2026-02-23'). Use empty string if no specific date."
+          },
+          label: {
+            type: "string",
+            description: "What the alarm is for (e.g., 'wake up', 'meeting', 'gym')"
+          },
+          repeat: {
+            type: "string",
+            enum: ["once", "daily", "custom"],
+            description: "Repeat pattern: once, daily, or custom (weekdays)"
+          }
         },
-        {
-            type: "function",
-            function: {
-            name: "end_deep_work",
-            description: "End the current deep work session",
-            parameters: {
-                type: "object",
-                properties: {},
-                required: []
-            }
-            }
-        },
-        {
-            type: "function",
-            function: {
-            name: "check_focus_status",
-            description: "Check user's current focus level and distractions",
-            parameters: {
-                type: "object",
-                properties: {},
-                required: []
-            }
-            }
-        }, 
+        required: ["time"]
+      }
+    }
+  },
             {
                 type: "function",
                 function: {
