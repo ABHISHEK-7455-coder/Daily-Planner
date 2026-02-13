@@ -34,6 +34,11 @@ export default function AdvancedBuddy({
   const reminderIntervalRef = useRef(null);
   const checkInIntervalRef = useRef(null);
 
+  // 🎯 DEBUG: Log when onUpdateNotes changes
+  useEffect(() => {
+    console.log("🔍 ChatBuddy: onUpdateNotes callback:", onUpdateNotes ? "✅ Available" : "❌ Missing");
+  }, [onUpdateNotes]);
+
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -596,19 +601,43 @@ export default function AdvancedBuddy({
         break;
       
       case "update_notes":
-        onUpdateNotes(action.params.content, action.params.mode || 'append');
+        console.log("📝 ChatBuddy: update_notes action triggered");
+        console.log("📝 Content:", action.params.content);
+        console.log("📝 Mode:", action.params.mode || 'append');
+        console.log("📝 onUpdateNotes callback exists?", !!onUpdateNotes);
         
-        const notesMsg = {
-          hindi: `📝 नोट्स में add हो गया!`,
-          english: `📝 Added to your notes!`,
-          hinglish: `📝 Notes mein add ho gaya!`
-        };
-        
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: notesMsg[language] || notesMsg.hinglish,
-          timestamp: new Date()
-        }]);
+        if (onUpdateNotes) {
+          try {
+            onUpdateNotes(action.params.content, action.params.mode || 'append');
+            console.log("✅ onUpdateNotes called successfully");
+            
+            const notesMsg = {
+              hindi: `📝 नोट्स में add हो गया!`,
+              english: `📝 Added to your notes!`,
+              hinglish: `📝 Notes mein add ho gaya!`
+            };
+            
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: notesMsg[language] || notesMsg.hinglish,
+              timestamp: new Date()
+            }]);
+          } catch (error) {
+            console.error("❌ Error calling onUpdateNotes:", error);
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: "Sorry, couldn't update notes. Please try again.",
+              timestamp: new Date()
+            }]);
+          }
+        } else {
+          console.error("❌ onUpdateNotes callback is not available!");
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: "Notes feature not connected. Please check the app setup.",
+            timestamp: new Date()
+          }]);
+        }
         break;
         
       default:

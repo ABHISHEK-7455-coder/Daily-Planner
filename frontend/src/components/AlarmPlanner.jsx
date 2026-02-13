@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useRef, useState } from "react";
+import React, { useEffect, useReducer, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import "./AlarmPlanner.css";
 
 /* ===================== REDUCER ===================== */
@@ -50,7 +50,6 @@ function checkAlarm(alarm, now) {
     if (!alarm.isActive) return false;
     if (alarm.snoozedUntil && Date.now() < alarm.snoozedUntil) return false;
 
-    // ⛔ prevent multiple triggers in same minute
     if (alarm.lastTriggered && Date.now() - alarm.lastTriggered < 60000) {
         return false;
     }
@@ -58,6 +57,7 @@ function checkAlarm(alarm, now) {
     if (now.getHours() !== h || now.getMinutes() !== m) return false;
 
     if (alarm.repeat === "once") {
+        if (!alarm.date) return true;
         return alarm.date === now.toISOString().slice(0, 10);
     }
     if (alarm.repeat === "daily") return true;
@@ -68,7 +68,7 @@ function checkAlarm(alarm, now) {
 
 /* ===================== COMPONENT ===================== */
 
-export default function AlarmPlanner() {
+const AlarmPlanner = forwardRef((props, ref) => {
     const [alarms, dispatch] = useReducer(alarmReducer, []);
     const [activeAlarm, setActiveAlarm] = useState(null);
     const [audioEnabled, setAudioEnabled] = useState(false);
@@ -83,8 +83,50 @@ export default function AlarmPlanner() {
         repeat: "once"
     });
 
-    /* ---------- ENABLE AUDIO (Browser Policy) ---------- */
+    // 🎯 EXPOSE METHOD FOR BUDDY INTEGRATION
+    useImperativeHandle(ref, () => ({
+        addAlarmFromBuddy: (alarmData) => {
+            console.log("⏰ AlarmPlanner received:", alarmData);
+            
+            try {
+                const time24 = to24Hour(alarmData.hour, alarmData.minute, alarmData.period);
+                const displayTime = `${alarmData.hour}:${alarmData.minute} ${alarmData.period}`;
+
+                const newAlarm = {
+                    id: Date.now(),
+                    time24,
+                    displayTime,
+                    date: alarmData.date || "",
+                    label: alarmData.label || "Alarm",
+                    repeat: alarmData.repeat || "once",
+                    repeatDays: [1, 2, 3, 4, 5],
+                    isActive: true,
+                    snoozeMinutes: 5,
+                    autoStopMinutes: 1,
+                    lastTriggered: null,
+                    snoozedUntil: null
+                };
+
+                dispatch({ type: "ADD", payload: newAlarm });
+                console.log("✅ Alarm added:", displayTime);
+                
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification("⏰ Alarm Set!", {
+                        body: `${alarmData.label || 'Alarm'} at ${displayTime}`,
+                        icon: "/icon-192x192.png"
+                    });
+                }
+                
+                return true;
+            } catch (error) {
+                console.error("❌ Add alarm error:", error);
+                return false;
+            }
+        }
+    }));
+
     function enableSound() {
+        if (!audioRef.current) return;
         audioRef.current.volume = 1;
         audioRef.current.play().then(() => {
             audioRef.current.pause();
@@ -93,14 +135,12 @@ export default function AlarmPlanner() {
         });
     }
 
-    /* ---------- Notifications ---------- */
     useEffect(() => {
         if ("Notification" in window) {
             Notification.requestPermission();
         }
     }, []);
 
-    /* ---------- Load & Persist ---------- */
     useEffect(() => {
         const saved = JSON.parse(localStorage.getItem("alarms")) || [];
         dispatch({ type: "LOAD", payload: saved });
@@ -110,7 +150,6 @@ export default function AlarmPlanner() {
         localStorage.setItem("alarms", JSON.stringify(alarms));
     }, [alarms]);
 
-    /* ---------- ALARM ENGINE ---------- */
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date();
@@ -132,7 +171,6 @@ export default function AlarmPlanner() {
                         });
                     }
 
-                    // ⏱ auto stop after 1 minute
                     setTimeout(() => {
                         stopAlarm(alarm.id);
                     }, alarm.autoStopMinutes * 60000);
@@ -142,8 +180,6 @@ export default function AlarmPlanner() {
 
         return () => clearInterval(interval);
     }, [alarms, audioEnabled]);
-
-    /* ---------- Actions ---------- */
 
     function addAlarm() {
         const time24 = to24Hour(form.hour, form.minute, form.period);
@@ -161,7 +197,7 @@ export default function AlarmPlanner() {
                 repeatDays: [1, 2, 3, 4, 5],
                 isActive: true,
                 snoozeMinutes: 5,
-                autoStopMinutes: 1, // 🔥 1 minute sound
+                autoStopMinutes: 1,
                 lastTriggered: null,
                 snoozedUntil: null
             }
@@ -193,8 +229,6 @@ export default function AlarmPlanner() {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
     }
-
-    /* ===================== UI ===================== */
 
     return (
         <div className={`planner ${activeAlarm ? "ringing" : ""}`}>
@@ -309,4 +343,8 @@ export default function AlarmPlanner() {
             <audio ref={audioRef} src="/alarm.mp3" preload="auto" loop />
         </div>
     );
-}
+});
+
+AlarmPlanner.displayName = "AlarmPlanner";
+
+export default AlarmPlanner;

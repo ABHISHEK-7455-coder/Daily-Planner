@@ -2,8 +2,7 @@ import React from "react";
 import { useEffect, useState, useImperativeHandle, forwardRef, useRef } from "react";
 import "./DailyNotes.css";
 
-const getDateKey = (date) =>
-    date.toISOString().slice(0, 10);
+const getDateKey = (date) => date.toISOString().slice(0, 10);
 
 const DailyNotes = forwardRef(({ currentDate }, ref) => {
     const dayKey = getDateKey(currentDate);
@@ -14,6 +13,7 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const noteRef = useRef(null);
+    const textareaRef = useRef(null);
 
     /* 🔹 LOAD NOTE ON DATE CHANGE */
     useEffect(() => {
@@ -39,19 +39,17 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
     const saveNote = () => {
         const raw = localStorage.getItem("daily-notes");
         const allNotes = raw ? JSON.parse(raw) : {};
-
         allNotes[dayKey] = note;
-
-        localStorage.setItem(
-            "daily-notes",
-            JSON.stringify(allNotes)
-        );
+        localStorage.setItem("daily-notes", JSON.stringify(allNotes));
     };
 
     // ═══════════════════════════════════════════════════════════
     // VOICE UPDATE METHOD - Called by Advanced Buddy
     // ═══════════════════════════════════════════════════════════
     const updateFromVoice = (content, mode = 'append') => {
+        console.log("🎤 DailyNotes: updateFromVoice called");
+        console.log("🎤 Content:", content);
+
         const raw = localStorage.getItem("daily-notes");
         const allNotes = raw ? JSON.parse(raw) : {};
 
@@ -63,69 +61,61 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
                 : `[${timestamp}] ${content}`;
             allNotes[dayKey] = newNote;
             setNote(newNote);
+            
+            // 🎯 AUTO-SCROLL TO BOTTOM
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+                    console.log("✅ Scrolled to bottom");
+                }
+            }, 100);
         } else {
             allNotes[dayKey] = content;
             setNote(content);
         }
 
         localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+        console.log("✅ Note updated and saved");
     };
 
     /* 🎯 DRAG HANDLERS */
     const handleMouseDown = (e) => {
-        // Don't drag if clicking on textarea or hint text
-        if (e.target.tagName === 'TEXTAREA' || e.target.classList.contains('daily-notes-hint')) {
+        if (e.target.tagName === 'TEXTAREA') {
             return;
         }
-
         setIsDragging(true);
-
         const rect = noteRef.current.getBoundingClientRect();
         setDragOffset({
             x: e.clientX - rect.left,
             y: e.clientY - rect.top
         });
-
-        // Prevent text selection while dragging
         e.preventDefault();
     };
 
     const handleMouseMove = (e) => {
         if (!isDragging || !noteRef.current) return;
-
         const newX = e.clientX - dragOffset.x;
         const newY = e.clientY - dragOffset.y;
-
-        // Get viewport and element dimensions
         const maxX = window.innerWidth - noteRef.current.offsetWidth;
         const maxY = window.innerHeight - noteRef.current.offsetHeight;
-
-        // Keep within viewport bounds
         const boundedX = Math.max(0, Math.min(newX, maxX));
         const boundedY = Math.max(0, Math.min(newY, maxY));
-
         setPosition({ x: boundedX, y: boundedY });
     };
 
     const handleMouseUp = () => {
         if (isDragging) {
             setIsDragging(false);
-            // Save position to localStorage
             if (position.x !== null && position.y !== null) {
-                localStorage.setItem(
-                    "daily-notes-position",
-                    JSON.stringify(position)
-                );
+                localStorage.setItem("daily-notes-position", JSON.stringify(position));
             }
         }
     };
 
-    /* 🔹 ATTACH GLOBAL LISTENERS FOR DRAGGING */
     useEffect(() => {
         if (isDragging) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
-
             return () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
@@ -133,7 +123,6 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
         }
     }, [isDragging, dragOffset, position]);
 
-    /* 🎯 INLINE STYLE FOR POSITION */
     const positionStyle = position.x !== null && position.y !== null
         ? {
             position: 'fixed',
@@ -157,11 +146,9 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
             onMouseDown={handleMouseDown}
         >
             <h3>📝 Daily Notes <span className="drag-hint">✋</span></h3>
-            {/* <p className="daily-notes-hint">
-                ✍️ Type here or 🎤 use voice mode in AI Buddy
-            </p> */}
 
             <textarea
+                ref={textareaRef}
                 value={note}
                 placeholder="Write freely about your day... or dictate using your AI Buddy! 🎤"
                 onChange={(e) => setNote(e.target.value)}
