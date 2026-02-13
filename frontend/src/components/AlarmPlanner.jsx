@@ -2,6 +2,7 @@ import React, { useEffect, useReducer, useRef, useState, forwardRef, useImperati
 import "./AlarmPlanner.css";
 
 /* ===================== REDUCER ===================== */
+
 function alarmReducer(state, action) {
     switch (action.type) {
         case "LOAD":
@@ -48,6 +49,7 @@ function checkAlarm(alarm, now) {
 
     if (!alarm.isActive) return false;
     if (alarm.snoozedUntil && Date.now() < alarm.snoozedUntil) return false;
+
     if (alarm.lastTriggered && Date.now() - alarm.lastTriggered < 60000) {
         return false;
     }
@@ -65,6 +67,7 @@ function checkAlarm(alarm, now) {
 }
 
 /* ===================== COMPONENT ===================== */
+
 const AlarmPlanner = forwardRef((props, ref) => {
     const [alarms, dispatch] = useReducer(alarmReducer, []);
     const [activeAlarm, setActiveAlarm] = useState(null);

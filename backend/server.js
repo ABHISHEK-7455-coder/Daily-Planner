@@ -613,3 +613,6 @@ app.post("/api/proactive-checkin", async (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Buddy server running on port ${PORT}`);
 });
+app.get("/", (req, res) => {
+  res.send("Daily Planner Backend is running 🚀");
+});
