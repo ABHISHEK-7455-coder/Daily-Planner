@@ -1,73 +1,450 @@
+/* ===================== ALARM PLANNER - COZY THEME ===================== */
+
 .planner {
-    padding: 20px;
-    max-width: 500px;
-    margin: auto;
-    font-family: sans-serif;
+    padding: 24px;
+    max-width: 420px;
+    margin: 5vh auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #fef6e4 0%, #f3ece4 100%);
+    border-radius: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
-.form input,
-.form select,
+.planner h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2d3436;
+    margin-bottom: 20px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* ===== Enable Sound Button ===== */
+.enable-sound {
+    width: 100%;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fab1a0 0%, #ff7675 100%);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(255, 118, 117, 0.3);
+}
+
+.enable-sound:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 118, 117, 0.4);
+}
+
+/* ===== Form Styling ===== */
+.form {
+    background: white;
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    margin-bottom: 24px;
+}
+
+.input-group {
+    position: relative;
+    margin: 10px 0;
+}
+
+.input-group i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #a29bfe;
+    font-size: 16px;
+    pointer-events: none;
+}
+
+.input-group input {
+    padding-left: 46px !important;
+}
+
+.form label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #636e72;
+    margin: 16px 0 6px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form label i {
+    color: #a29bfe;
+    font-size: 14px;
+}
+
+.time-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.time-row select {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid #f0f0f0;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #2d3436;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-row select:focus {
+    outline: none;
+    border-color: #a29bfe;
+    background: white;
+}
+
+.time-row select:last-child {
+    flex: 0.6;
+}
+
+.form input[type="date"],
+.form input[type="text"],
+.form select:not(.time-row select) {
+    width: 100%;
+    padding: 12px 16px;
+    margin: 6px 0;
+    border: 2px solid #f0f0f0;
+    border-radius: 12px;
+    font-size: 15px;
+    color: #2d3436;
+    background: #fafafa;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.form select:not(.time-row select) {
+    padding-right: 40px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a29bfe' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-color: #fafafa;
+    cursor: pointer;
+}
+
+.form select:not(.time-row select) option {
+    padding: 10px;
+    background: white;
+}
+
+.form input::placeholder {
+    color: #b2bec3;
+    font-style: italic;
+}
+
+.form input:focus,
+.form select:focus {
+    outline: none;
+    border-color: #a29bfe;
+    background: white;
+}
+
 .form button {
-    margin: 6px;
-    padding: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    margin-top: 12px;
+    background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+}
+
+.form button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(108, 92, 231, 0.4);
+}
+
+.form button:active {
+    transform: translateY(0);
+}
+
+/* ===== Alarm List ===== */
+.list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .list li {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
     margin: 10px 0;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.list li:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.list li span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2d3436;
+}
+
+.list li span strong {
+    font-size: 18px;
+    font-weight: 600;
+    color: #6c5ce7;
+}
+
+.list li button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.list li button {
+    background: linear-gradient(135deg, #55efc4 0%, #00b894 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 184, 148, 0.3);
+}
+
+.list li:has(button:contains("OFF")) button,
+.list li button:not(:contains("ON")) {
+    background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);
+    color: #636e72;
+    box-shadow: 0 2px 8px rgba(99, 110, 114, 0.2);
+}
+
+/* ===== Ringing State ===== */
+.planner.ringing {
+    animation: gentle-shake 0.5s ease-in-out infinite;
+}
+
+@keyframes gentle-shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-2px);
+    }
+
+    75% {
+        transform: translateX(2px);
+    }
 }
 
 /* ===== Overlay ===== */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(45, 52, 54, 0.85);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 999;
+    animation: fadeIn 0.3s ease;
 }
 
-/* ===== Alarm Modal ===== */
-.alarm-modal {
-    background: white;
-    padding: 30px;
-    border-radius: 12px;
-    width: 380px;
-    text-align: center;
-    animation: pop 0.3s ease;
-}
-
-.alarm-modal h1 {
-    margin-bottom: 10px;
-}
-
-.alarm-modal .time {
-    font-size: 32px;
-    font-weight: bold;
-}
-
-.alarm-modal .label {
-    margin: 10px 0;
-    color: #555;
-}
-
-.actions button {
-    margin: 8px;
-    padding: 10px 14px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-@keyframes pop {
+@keyframes fadeIn {
     from {
-        transform: scale(0.8);
         opacity: 0;
     }
 
     to {
-        transform: scale(1);
         opacity: 1;
+    }
+}
+
+/* ===== Alarm Modal ===== */
+.alarm-modal {
+    background: linear-gradient(135deg, #fff 0%, #fef6e4 100%);
+    padding: 40px 32px;
+    border-radius: 28px;
+    width: 360px;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    border: 4px solid #ff7675;
+}
+
+.alarm-modal.shake {
+    animation: pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+        shake 0.6s ease-in-out infinite 0.4s;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    25% {
+        transform: rotate(-3deg);
+    }
+
+    75% {
+        transform: rotate(3deg);
+    }
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(0.5) rotate(-5deg);
+        opacity: 0;
+    }
+
+    60% {
+        transform: scale(1.05) rotate(2deg);
+    }
+
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
+
+.alarm-modal h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #d63031;
+    margin: 0 0 20px 0;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.alarm-modal .time {
+    font-size: 48px;
+    font-weight: 700;
+    color: #2d3436;
+    margin: 12px 0;
+    font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.alarm-modal .label {
+    font-size: 18px;
+    margin: 16px 0 24px 0;
+    color: #636e72;
+    font-weight: 500;
+    padding: 12px 20px;
+    background: rgba(162, 155, 254, 0.1);
+    border-radius: 12px;
+}
+
+/* ===== Action Buttons ===== */
+.actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.actions button {
+    flex: 1;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.actions button:first-child {
+    background: linear-gradient(135deg, #fdcb6e 0%, #f39c12 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+.actions button:first-child:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(243, 156, 18, 0.5);
+}
+
+.actions button:last-child {
+    background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(214, 48, 49, 0.4);
+}
+
+.actions button:last-child:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(214, 48, 49, 0.5);
+}
+
+.actions button:active {
+    transform: translateY(0);
+}
+
+/* ===== Responsive Design ===== */
+@media (max-width: 450px) {
+    .planner {
+        padding: 16px;
+        border-radius: 20px;
+        margin: 4px;
+    }
+
+    .alarm-modal {
+        width: 320px;
+        padding: 32px 24px;
+    }
+
+    .alarm-modal .time {
+        font-size: 40px;
+    }
+
+    .actions {
+        flex-direction: column;
     }
 }

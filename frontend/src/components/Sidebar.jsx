@@ -14,7 +14,9 @@ export default function Sidebar({
   onFilterChange,
   activeFilter,
   onOpenReflection,
-  onOpenWeeklySummary
+  onOpenWeeklySummary,
+  asDropdown = false,   // 👈 NEW PROP
+  onClose
 }) {
   const [showModal, setShowModal] = useState(false);
   const [dailyTasks, setDailyTasks] = useState([]);
@@ -31,20 +33,40 @@ export default function Sidebar({
   const pending = tasks.filter(t => !t.completed).length;
   const total = tasks.length;
 
+  const handleAction = (callback, value) => {
+  callback?.(value);
+  if (asDropdown) onClose?.();
+};
+
   /* 🔁 AUTO OPEN ONCE PER DAY */
   useEffect(() => {
-    const lastOpened = localStorage.getItem("daily-modal-opened");
-    if (lastOpened !== todayKey) {
-      setShowModal(true);
-      localStorage.setItem("daily-modal-opened", todayKey);
+    if (!asDropdown) {
+      const lastOpened = localStorage.getItem("daily-modal-opened");
+      if (lastOpened !== todayKey) {
+        setShowModal(true);
+        localStorage.setItem("daily-modal-opened", todayKey);
+      }
     }
-  }, [todayKey]);
+  }, [todayKey, asDropdown]);
 
   /* 🔹 LOAD */
   useEffect(() => {
     setDailyTasks(JSON.parse(localStorage.getItem("daily-tasks")) || []);
     setHobbies(JSON.parse(localStorage.getItem("daily-hobbies")) || []);
   }, []);
+
+  useEffect(() => {
+    if (!asDropdown) return;
+
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".tasks-dropdown")) {
+        onClose?.();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [asDropdown, onClose]);
 
   /* 💾 SAVE */
   const save = (tasks, hobbies) => {
@@ -109,9 +131,9 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="sidebar-container">
+      <div className={asDropdown ? "tasks-dropdown" : "sidebar-container"}>
         <div className="sidebar-content">
-          <div className="sidebar-header">
+          {/* <div className="sidebar-header">
             <div className="sidebar-logo">
               <div className="sidebar-logo-icon">📅</div>
               <div className="sidebar-logo-text">
@@ -126,12 +148,13 @@ export default function Sidebar({
                 <div className="sidebar-logo-subtitle">Minimalist Edition</div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <nav className="sidebar-nav">
             <button
               className={`sidebar-nav-item ${activeFilter === "all" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => onFilterChange("all")}
+              onClick={() => handleAction(onFilterChange, "all")}
+
             >
               <span className="sidebar-nav-icon">📋</span>
               <span className="sidebar-nav-label">All Tasks</span>
@@ -140,7 +163,8 @@ export default function Sidebar({
 
             <button
               className={`sidebar-nav-item ${activeFilter === "pending" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => onFilterChange("pending")}
+              onClick={() => handleAction(onFilterChange, "pending")}
+
             >
               <span className="sidebar-nav-icon">⏳</span>
               <span className="sidebar-nav-label">Pending</span>
@@ -149,7 +173,8 @@ export default function Sidebar({
 
             <button
               className={`sidebar-nav-item ${activeFilter === "completed" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => onFilterChange("completed")}
+              onClick={() => handleAction(onFilterChange, "completed")}
+
             >
               <span className="sidebar-nav-icon">✓</span>
               <span className="sidebar-nav-label">Completed</span>
@@ -164,18 +189,20 @@ export default function Sidebar({
               <span className="sidebar-nav-label">Daily Tasks & Hobbies</span>
             </button> */}
 
-            <button className="sidebar-nav-item" onClick={onOpenReflection}>
+            <button className="sidebar-nav-item" onClick={() => handleAction(onOpenReflection)}
+>
               <span className="sidebar-nav-icon">📊</span>
               <span className="sidebar-nav-label">Overview</span>
             </button>
 
-            <button className="sidebar-nav-item" onClick={onOpenWeeklySummary}>
+            <button className="sidebar-nav-item" onClick={() => handleAction(onOpenWeeklySummary)}
+>
               <span className="sidebar-nav-icon">📈</span>
               <span className="sidebar-nav-label">Weekly Summary</span>
             </button>
           </nav>
         </div>
-      </aside>
+      </div>
 
       {/* ================= MODAL ================= */}
       {showModal && (

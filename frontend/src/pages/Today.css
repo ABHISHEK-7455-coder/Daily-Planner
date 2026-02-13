@@ -32,8 +32,8 @@
 
     /* Spacing */
     --space-xs: 8px;
-    --space-sm: 12px;
-    --space-md: 16px;
+    --space-sm: 8px;
+    --space-md: 12px;
     --space-lg: 32px;
     --space-xl: 40px;
 }
@@ -95,6 +95,11 @@ body {
     transition: all 0.3s ease;
 }
 
+.today-header-left {
+    display: flex;
+    justify-content: space-between;
+}
+
 .today-header h2 {
     font-family: 'Fredoka', sans-serif;
     font-size: 2rem;
@@ -133,9 +138,9 @@ body {
 .today-date-navigation {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: 0px;
     background: var(--cozy-white);
-    padding: var(--space-sm) var(--space-md);
+    padding: 4px 12px;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
 }
@@ -213,6 +218,7 @@ body {
     grid-template-columns: 200px 1fr;
     gap: var(--space-lg);
     margin-top: var(--space-lg);
+    height: auto;
 }
 
 /* 🎨 BUCKET SIDEBAR (Desk Objects style) */
@@ -313,7 +319,7 @@ body {
     padding: var(--space-xl);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    min-height: 500px;
+    height: auto;
     position: relative;
     overflow: hidden;
 }
@@ -556,6 +562,22 @@ body {
     .today-header {
         flex-direction: column;
         gap: var(--space-md);
+    }
+}
+
+@media (max-width:450px){
+    .bucket-sidebar {
+        scrollbar-width: none;
+        box-shadow: none;
+    }
+    .bucket-button {
+        width: 35%;
+        padding: 12px 40px;
+        box-shadow: none;
+    }
+    .bucket-content {
+        padding: 16px 12px;
+        height: auto;
     }
 }
 

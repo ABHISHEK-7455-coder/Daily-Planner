@@ -49,3 +49,49 @@
     font-size: 11px;
     opacity: 0.9;
 }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .day-calendar {
+        grid-template-columns: 60px 1fr;
+        height: 1200px; /* Slightly smaller for mobile */
+    }
+
+    .day-calendar-hour {
+        height: 50px;
+        padding: 2px 4px;
+        font-size: 11px;
+    }
+
+    .day-calendar-hour-slot {
+        height: 50px;
+    }
+
+    .calendar-task {
+        left: 4px;
+        right: 4px;
+        padding: 4px 6px;
+        font-size: 12px;
+        border-radius: 4px;
+    }
+
+    .calendar-task-time {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .day-calendar {
+        grid-template-columns: 50px 1fr;
+    }
+
+    .day-calendar-hour {
+        font-size: 10px;
+        padding: 2px;
+    }
+
+    .calendar-task {
+        font-size: 11px;
+        padding: 3px 5px;
+    }
+}

@@ -9,13 +9,14 @@ export default function AdvancedBuddy({
     onAddTask,
     onCompleteTask,
     onDeleteTask,
-    onUpdateNotes
+    onUpdateNotes,
+    onAddAlarm
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState("");
-    const [inputMode, setInputMode] = useState("text"); // "text" or "voice"
-    const [voiceMode, setVoiceMode] = useState("chat"); // "chat", "tasks", or "notes"
+    const [inputMode, setInputMode] = useState("text");
+    const [voiceMode, setVoiceMode] = useState("chat");
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [language, setLanguage] = useState(
@@ -33,12 +34,11 @@ export default function AdvancedBuddy({
     const reminderIntervalRef = useRef(null);
     const checkInIntervalRef = useRef(null);
 
-    // Scroll to bottom when messages change
+    // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Save language preference
     useEffect(() => {
         localStorage.setItem("buddy-language", language);
     }, [language]);
@@ -77,7 +77,6 @@ export default function AdvancedBuddy({
 
             if (interimTranscript) {
                 interimTranscriptRef.current = interimTranscript;
-                // Show interim result
                 setMessages(prev => {
                     const filtered = prev.filter(m => !m.interim);
                     return [...filtered, {
@@ -90,7 +89,6 @@ export default function AdvancedBuddy({
             }
 
             if (finalTranscript) {
-                // Remove interim message and add final
                 setMessages(prev => prev.filter(m => !m.interim));
                 handleSendMessage(finalTranscript);
                 interimTranscriptRef.current = "";
@@ -104,7 +102,6 @@ export default function AdvancedBuddy({
 
         recognition.onend = () => {
             setIsListening(false);
-            // Remove any interim messages
             setMessages(prev => prev.filter(m => !m.interim));
         };
 
@@ -124,25 +121,19 @@ export default function AdvancedBuddy({
         }
     }, [tasks, currentDate]);
 
-    // ═══════════════════════════════════════════════════════════
-    // TASK MONITORING SYSTEM
-    // Sends reminders before task start and check-ins after time
-    // ═══════════════════════════════════════════════════════════
+    // Task monitoring
     useEffect(() => {
-        // Clear existing intervals
         if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
         if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
 
-        // Check every minute for task reminders and check-ins
         reminderIntervalRef.current = setInterval(() => {
             checkTaskReminders();
-        }, 60000); // Every 1 minute
+        }, 60000);
 
         checkInIntervalRef.current = setInterval(() => {
             checkTaskCompletions();
-        }, 60000); // Every 1 minute
+        }, 60000);
 
-        // Initial check
         checkTaskReminders();
         checkTaskCompletions();
 
@@ -154,16 +145,15 @@ export default function AdvancedBuddy({
 
     const checkTaskReminders = async () => {
         const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+        const currentTime = now.getHours() * 60 + now.getMinutes();
 
         for (const task of tasks) {
             if (!task.startTime || task.completed) continue;
 
             const [hours, minutes] = task.startTime.split(':').map(Number);
-            const taskStartTime = hours * 60 + minutes; // Task start time in minutes
-            const timeDiff = taskStartTime - currentTime; // Difference in minutes
+            const taskStartTime = hours * 60 + minutes;
+            const timeDiff = taskStartTime - currentTime;
 
-            // Remind 10 minutes before task starts
             const reminderKey = `reminder-${task.id}-${currentDate}`;
             if (timeDiff === 10 && !taskReminders.has(reminderKey)) {
                 setTaskReminders(prev => new Set(prev).add(reminderKey));
@@ -183,7 +173,6 @@ export default function AdvancedBuddy({
             const taskStartTime = hours * 60 + minutes;
             const timePassed = currentTime - taskStartTime;
 
-            // Check 30 minutes after task start time if not completed
             const checkInKey = `checkin-${task.id}-${currentDate}`;
             if (timePassed === 30 && !task.completed && !taskCheckIns.has(checkInKey)) {
                 setTaskCheckIns(prev => new Set(prev).add(checkInKey));
@@ -202,7 +191,6 @@ export default function AdvancedBuddy({
 
             const data = await response.json();
 
-            // Show popup notification with motivating actions
             const motivationalMessages = {
                 hindi: `⏰ "${task.title}" 10 मिनट में शुरू होने वाला है। तैयार हो जाओ!`,
                 english: `⏰ "${task.title}" starts in 10 minutes. Get ready!`,
@@ -217,7 +205,6 @@ export default function AdvancedBuddy({
                     action: () => {
                         setShowProactivePopup(false);
                         setIsOpen(true);
-                        // Add motivational message to chat
                         setMessages(prev => [...prev, {
                             role: "assistant",
                             content: language === "hindi"
@@ -237,7 +224,6 @@ export default function AdvancedBuddy({
             ]);
             setShowProactivePopup(true);
 
-            // Also add to chat if open
             if (isOpen) {
                 setMessages(prev => [...prev, {
                     role: "assistant",
@@ -261,7 +247,6 @@ export default function AdvancedBuddy({
 
             const data = await response.json();
 
-            // Motivating check-in messages
             const checkInMessages = {
                 hindi: `🤔 "${task.title}" हो गया क्या? अगर नहीं हुआ तो कोई बात नहीं - मैं मदद कर सकता हूं!`,
                 english: `🤔 Did you finish "${task.title}"? If not, no worries - I can help!`,
@@ -277,7 +262,6 @@ export default function AdvancedBuddy({
                         onCompleteTask(task.id);
                         setShowProactivePopup(false);
 
-                        // Celebrate in chat
                         const celebrationMsg = {
                             hindi: `🎉 शाबाश! "${task.title}" पूरा हो गया! अगला क्या है?`,
                             english: `🎉 Awesome! "${task.title}" completed! What's next?`,
@@ -299,7 +283,6 @@ export default function AdvancedBuddy({
                         setShowProactivePopup(false);
                         setIsOpen(true);
 
-                        // Offer help in chat
                         const helpMsg = {
                             hindi: `कोई बात नहीं! "${task.title}" में क्या problem आ रही है? मैं इसे छोटे steps में तोड़ सकता हूं या tips दे सकता हूं!`,
                             english: `No problem! What's challenging about "${task.title}"? I can break it into smaller steps or give you tips!`,
@@ -317,7 +300,6 @@ export default function AdvancedBuddy({
             ]);
             setShowProactivePopup(true);
 
-            // Also add to chat if open
             if (isOpen) {
                 setMessages(prev => [...prev, {
                     role: "assistant",
@@ -337,7 +319,6 @@ export default function AdvancedBuddy({
         const lastPopupKey = `last-proactive-popup-${currentDate}`;
         const lastPopup = localStorage.getItem(lastPopupKey);
 
-        // Show popup once per day at specific times
         if (lastPopup) return;
 
         let type = null;
@@ -378,7 +359,6 @@ export default function AdvancedBuddy({
     const handleSendMessage = async (text) => {
         if (!text.trim()) return;
 
-        // Add user message
         const userMessage = {
             role: "user",
             content: text,
@@ -409,7 +389,7 @@ export default function AdvancedBuddy({
             // Handle actions
             if (data.actions && data.actions.length > 0) {
                 for (const action of data.actions) {
-                    handleAction(action);
+                    await handleAction(action);
                 }
             }
 
@@ -432,12 +412,49 @@ export default function AdvancedBuddy({
         }
     };
 
-    const handleAction = (action) => {
-        console.log("Handling action:", action); // Debug log
+    const handleAction = async (action) => {
+        console.log("🎯 Handling action:", action);
 
         switch (action.type) {
+            case "set_alarm":
+                console.log("⏰ Setting alarm:", action.params);
+
+                if (onAddAlarm) {
+                    onAddAlarm(action.params);
+
+                    const alarmMsg = {
+                        hindi: `⏰ Alarm set ho gaya - ${action.params.time} pe ${action.params.date ? action.params.date + ' ko' : ''} bajega! "${action.params.label || 'Alarm'}"`,
+                        english: `⏰ Alarm set for ${action.params.time} ${action.params.date ? 'on ' + action.params.date : ''}! "${action.params.label || 'Alarm'}"`,
+                        hinglish: `⏰ Alarm set ho gaya - ${action.params.time} pe ${action.params.date ? action.params.date + ' ko' : ''} bajega! "${action.params.label || 'Alarm'}"`
+                    };
+
+                    setMessages(prev => [...prev, {
+                        role: "assistant",
+                        content: alarmMsg[language] || alarmMsg.hinglish,
+                        timestamp: new Date()
+                    }]);
+                }
+                break;
+
+            case "set_reminder":
+                console.log("⏰ Setting reminder:", action.params);
+                await scheduleReminder(action.params.time, action.params.message);
+
+                const reminderMsg = {
+                    hindi: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`,
+                    english: `⏰ Reminder set for ${action.params.time} - you'll get a notification!`,
+                    hinglish: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`
+                };
+
+                setMessages(prev => [...prev, {
+                    role: "assistant",
+                    content: reminderMsg[language] || reminderMsg.hinglish,
+                    timestamp: new Date()
+                }]);
+                break;
+
             case "add_task":
-                console.log("Adding task:", action.params); // Debug log
+                console.log("✅ Adding task:", action.params);
                 onAddTask(
                     action.params.title,
                     action.params.timeOfDay,
@@ -445,11 +462,17 @@ export default function AdvancedBuddy({
                     action.params.endTime || null
                 );
 
-                // Confirm to user
+                let timeDisplay = "";
+                if (action.params.startTime && action.params.endTime) {
+                    timeDisplay = ` (${action.params.startTime} - ${action.params.endTime})`;
+                } else if (action.params.startTime) {
+                    timeDisplay = ` (${action.params.startTime} pe)`;
+                }
+
                 const confirmMsg = {
-                    hindi: `✅ "${action.params.title}" task add ho gaya${action.params.startTime ? ` (${action.params.startTime} pe)` : ''}!`,
-                    english: `✅ Added "${action.params.title}"${action.params.startTime ? ` at ${action.params.startTime}` : ''}!`,
-                    hinglish: `✅ "${action.params.title}" task add ho gaya${action.params.startTime ? ` (${action.params.startTime} pe)` : ''}!`
+                    hindi: `✅ "${action.params.title}" task add ho gaya${timeDisplay}!`,
+                    english: `✅ Added "${action.params.title}"${timeDisplay}!`,
+                    hinglish: `✅ "${action.params.title}" task add ho gaya${timeDisplay}!`
                 };
 
                 setMessages(prev => [...prev, {
@@ -460,12 +483,24 @@ export default function AdvancedBuddy({
                 break;
 
             case "complete_task":
-                const taskToComplete = tasks.find(t =>
-                    t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
+                let taskToComplete = tasks.find(t =>
+                    t.title.toLowerCase() === action.params.taskTitle.toLowerCase()
                 );
 
+                if (!taskToComplete) {
+                    taskToComplete = tasks.find(t =>
+                        t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
+                    );
+                }
+
+                if (!taskToComplete) {
+                    taskToComplete = tasks.find(t =>
+                        action.params.taskTitle.toLowerCase().includes(t.title.toLowerCase())
+                    );
+                }
+
                 if (taskToComplete) {
-                    console.log("Completing task:", taskToComplete); // Debug log
+                    console.log("✓ Completing task:", taskToComplete);
                     onCompleteTask(taskToComplete.id);
 
                     const completeMsg = {
@@ -480,10 +515,13 @@ export default function AdvancedBuddy({
                         timestamp: new Date()
                     }]);
                 } else {
+                    const pendingTasks = tasks.filter(t => !t.completed);
+                    const taskList = pendingTasks.map(t => `"${t.title}"`).join(", ");
+
                     const notFoundMsg = {
-                        hindi: `मुझे "${action.params.taskTitle}" task नहीं मिला। कौन सा task complete करना है?`,
-                        english: `I couldn't find "${action.params.taskTitle}". Which task do you want to complete?`,
-                        hinglish: `Mujhe "${action.params.taskTitle}" task nahi mila. Kaun sa task complete karna hai?`
+                        hindi: `Pending tasks: ${taskList}. Kaun sa complete karna hai?`,
+                        english: `Pending tasks: ${taskList}. Which one to complete?`,
+                        hinglish: `Pending tasks: ${taskList}. Kaun sa complete karna hai?`
                     };
 
                     setMessages(prev => [...prev, {
@@ -495,12 +533,40 @@ export default function AdvancedBuddy({
                 break;
 
             case "delete_task":
-                const taskToDelete = tasks.find(t =>
-                    t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
+                console.log("🔍 Searching for task to delete:", action.params.taskTitle);
+                console.log("📋 Available tasks:", tasks.map(t => t.title));
+
+                let taskToDelete = tasks.find(t =>
+                    t.title.toLowerCase() === action.params.taskTitle.toLowerCase()
                 );
 
+                if (!taskToDelete) {
+                    taskToDelete = tasks.find(t =>
+                        t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
+                    );
+                }
+
+                if (!taskToDelete) {
+                    taskToDelete = tasks.find(t =>
+                        action.params.taskTitle.toLowerCase().includes(t.title.toLowerCase())
+                    );
+                }
+
+                if (!taskToDelete) {
+                    const searchWords = action.params.taskTitle.toLowerCase().split(' ');
+                    taskToDelete = tasks.find(t => {
+                        const taskWords = t.title.toLowerCase().split(' ');
+                        return searchWords.some(sw => taskWords.some(tw => tw.includes(sw) || sw.includes(tw)));
+                    });
+                }
+
+                if (!taskToDelete && tasks.length > 0) {
+                    taskToDelete = tasks[tasks.length - 1];
+                    console.log("⚠️ Using last task as fallback:", taskToDelete.title);
+                }
+
                 if (taskToDelete) {
-                    console.log("Deleting task:", taskToDelete); // Debug log
+                    console.log("🗑️ Deleting task:", taskToDelete.title);
                     onDeleteTask(taskToDelete.id);
 
                     const deleteMsg = {
@@ -516,9 +582,9 @@ export default function AdvancedBuddy({
                     }]);
                 } else {
                     const notFoundMsg = {
-                        hindi: `मुझे "${action.params.taskTitle}" task नहीं मिला। कौन सा task delete करना है?`,
-                        english: `I couldn't find "${action.params.taskTitle}". Which task do you want to delete?`,
-                        hinglish: `Mujhe "${action.params.taskTitle}" task nahi mila. Kaun sa task delete karna hai?`
+                        hindi: `Koi task nahi mila delete karne ke liye.`,
+                        english: `No task found to delete.`,
+                        hinglish: `Koi task nahi mila delete karne ke liye.`
                     };
 
                     setMessages(prev => [...prev, {
@@ -550,6 +616,83 @@ export default function AdvancedBuddy({
         }
     };
 
+    const scheduleReminder = async (time, message) => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const now = new Date();
+        const reminderTime = new Date();
+        reminderTime.setHours(hours, minutes, 0, 0);
+
+        if (reminderTime <= now) {
+            reminderTime.setDate(reminderTime.getDate() + 1);
+        }
+
+        const delay = reminderTime.getTime() - now.getTime();
+
+        console.log(`⏰ Scheduling reminder for ${time}, delay: ${Math.round(delay / 1000)}s`);
+
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+
+        const reminders = JSON.parse(localStorage.getItem('pending-reminders') || '[]');
+        const reminder = {
+            id: Date.now(),
+            time,
+            message: message || `Reminder at ${time}`,
+            scheduledFor: reminderTime.toISOString()
+        };
+        reminders.push(reminder);
+        localStorage.setItem('pending-reminders', JSON.stringify(reminders));
+
+        setTimeout(async () => {
+            await showServiceWorkerNotification(reminder.message);
+
+            const updated = JSON.parse(localStorage.getItem('pending-reminders') || '[]');
+            const filtered = updated.filter(r => r.id !== reminder.id);
+            localStorage.setItem('pending-reminders', JSON.stringify(filtered));
+        }, delay);
+    };
+
+    const showServiceWorkerNotification = async (message) => {
+        console.log("🔔 Sending notification:", message);
+
+        if ('serviceWorker' in navigator && 'Notification' in window) {
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+
+            if (Notification.permission === 'granted') {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+
+                    await registration.showNotification('AI Buddy Reminder ⏰', {
+                        body: message,
+                        icon: '/icon-192x192.png',
+                        badge: '/icon-192x192.png',
+                        vibrate: [200, 100, 200, 100, 200],
+                        tag: 'buddy-reminder-' + Date.now(),
+                        requireInteraction: true,
+                        actions: [
+                            { action: 'open', title: 'Open App 📱' },
+                            { action: 'dismiss', title: 'Got it ✓' }
+                        ],
+                        data: { url: '/' }
+                    });
+
+                    console.log("✅ Service worker notification sent");
+                } catch (error) {
+                    console.error("Service worker notification failed:", error);
+                    new Notification('AI Buddy Reminder ⏰', {
+                        body: message,
+                        icon: '/icon-192x192.png'
+                    });
+                }
+            } else {
+                console.log("Notification permission denied");
+            }
+        }
+    };
+
     const toggleVoiceInput = () => {
         if (isListening) {
             recognitionRef.current?.stop();
@@ -568,16 +711,16 @@ export default function AdvancedBuddy({
     const getGreeting = () => {
         if (voiceMode === "notes") {
             const greetings = {
-                hindi: "📝 डेली नोट्स मोड। अपने विचार बोलें या लिखें!",
-                english: "📝 Daily Notes Mode. Speak or write your thoughts!",
-                hinglish: "📝 Daily Notes Mode. Apne thoughts bolo ya likho!"
+                hindi: "डेली नोट्स मोड। अपने विचार बोलें या लिखें!",
+                english: "Daily Notes Mode. Speak or write your thoughts!",
+                hinglish: "Daily Notes Mode. Apne thoughts bolo ya likho!"
             };
             return greetings[language] || greetings.hinglish;
         } else if (voiceMode === "tasks") {
             const greetings = {
-                hindi: "✅ टास्क मोड। टास्क जोड़ें, पूरा करें, या मैनेज करें!",
-                english: "✅ Tasks Mode. Add, complete, or manage your tasks!",
-                hinglish: "✅ Tasks Mode. Add karo, complete karo, ya manage karo!"
+                hindi: "टास्क मोड। टास्क जोड़ें, पूरा करें, या मैनेज करें!",
+                english: "Tasks Mode. Add, complete, or manage your tasks!",
+                hinglish: "Tasks Mode. Add karo, complete karo, ya manage karo!"
             };
             return greetings[language] || greetings.hinglish;
         } else {
@@ -593,10 +736,10 @@ export default function AdvancedBuddy({
     const getInputPlaceholder = () => {
         if (inputMode === "voice") {
             return language === "hindi"
-                ? "🎤 बोलें या टाइप करें..."
+                ? "बोलें या टाइप करें..."
                 : language === "english"
-                    ? "🎤 Speak or type..."
-                    : "🎤 Bolo ya type karo...";
+                    ? "Speak or type..."
+                    : "Bolo ya type karo...";
         }
         return language === "hindi"
             ? "यहां टाइप करें..."
@@ -619,7 +762,9 @@ export default function AdvancedBuddy({
                         </button>
 
                         <div className="popup-icon-container">
-                            <div className="popup-icon">🤖</div>
+                            <div className="popup-icon">
+                                <i className="fas fa-heart"></i>
+                            </div>
                         </div>
 
                         <p className="popup-message">{proactiveMessage}</p>
@@ -644,13 +789,13 @@ export default function AdvancedBuddy({
                                             setIsOpen(true);
                                         }}
                                     >
-                                        {language === "hindi" ? "चैट खोलें" : language === "english" ? "Open Chat" : "Chat Kholo"}
+                                        <i className="fas fa-comment-dots"></i> {language === "hindi" ? "चैट खोलें" : language === "english" ? "Open Chat" : "Chat Kholo"}
                                     </button>
                                     <button
                                         className="popup-action-btn secondary"
                                         onClick={() => setShowProactivePopup(false)}
                                     >
-                                        {language === "hindi" ? "बाद में" : language === "english" ? "Later" : "Baad Mein"}
+                                        <i className="fas fa-clock"></i> {language === "hindi" ? "बाद में" : language === "english" ? "Later" : "Baad Mein"}
                                     </button>
                                 </>
                             )}
@@ -666,7 +811,6 @@ export default function AdvancedBuddy({
                 aria-label="Toggle AI Buddy"
             >
                 <div className="buddy-avatar">
-                    <div className="avatar-ring"></div>
                     <div className="avatar-face">
                         {isListening ? (
                             <div className="sound-waves">
@@ -675,7 +819,7 @@ export default function AdvancedBuddy({
                                 <span></span>
                             </div>
                         ) : (
-                            "🤖"
+                            <i className="fas fa-smile-beam"></i>
                         )}
                     </div>
                 </div>
@@ -684,13 +828,15 @@ export default function AdvancedBuddy({
             {/* Chat Window */}
             {isOpen && (
                 <div className="advanced-buddy-window">
-                    {/* Header */}
                     <div className="buddy-header">
                         <div className="buddy-info">
-                            <div className="buddy-avatar-small">🤖</div>
+                            <div className="buddy-avatar-small">
+                                <i className="fas fa-smile-beam"></i>
+                            </div>
                             <div>
                                 <h4>AI Buddy</h4>
                                 <p className="buddy-status">
+                                    <i className="fas fa-circle" style={{ fontSize: '8px', marginRight: '4px', color: '#55efc4' }}></i>
                                     {language === "hindi" ? "यहाँ मदद के लिए" : language === "english" ? "Here to help" : "Madad ke liye yahan"}
                                 </p>
                             </div>
@@ -704,41 +850,41 @@ export default function AdvancedBuddy({
                             className={language === "hindi" ? "active" : ""}
                             onClick={() => setLanguage("hindi")}
                         >
-                            हिंदी
+                            <i className="fas fa-language"></i> हिंदी
                         </button>
                         <button
                             className={language === "english" ? "active" : ""}
                             onClick={() => setLanguage("english")}
                         >
-                            English
+                            <i className="fas fa-globe"></i> EN
                         </button>
                         <button
                             className={language === "hinglish" ? "active" : ""}
                             onClick={() => setLanguage("hinglish")}
                         >
-                            Hinglish
+                            <i className="fas fa-comments"></i> Mix
                         </button>
                     </div>
 
                     {/* Voice Mode Selection */}
-                    <div className="voice-mode-tabs" style={{ borderTop: '1px solid var(--buddy-light)' }}>
+                    <div className="voice-mode-tabs" style={{ borderTop: '1px solid var(--buddy-border)' }}>
                         <button
                             className={voiceMode === "chat" ? "active" : ""}
                             onClick={() => setVoiceMode("chat")}
                         >
-                            💬 {language === "hindi" ? "चैट" : language === "english" ? "Chat" : "Chat"}
+                            <i className="fas fa-comment-dots"></i> {language === "hindi" ? "चैट" : "Chat"}
                         </button>
                         <button
                             className={voiceMode === "tasks" ? "active" : ""}
                             onClick={() => setVoiceMode("tasks")}
                         >
-                            ✅ {language === "hindi" ? "टास्क" : language === "english" ? "Tasks" : "Tasks"}
+                            <i className="fas fa-check-circle"></i> {language === "hindi" ? "टास्क" : "Tasks"}
                         </button>
                         <button
                             className={voiceMode === "notes" ? "active" : ""}
                             onClick={() => setVoiceMode("notes")}
                         >
-                            📝 {language === "hindi" ? "नोट्स" : language === "english" ? "Notes" : "Notes"}
+                            <i className="fas fa-sticky-note"></i> {language === "hindi" ? "नोट्स" : "Notes"}
                         </button>
                     </div>
 
@@ -747,6 +893,7 @@ export default function AdvancedBuddy({
                         {messages.length === 0 && (
                             <div className="message assistant">
                                 <div className="message-content">
+                                    <i className="fas fa-sparkles" style={{ marginRight: '6px', color: '#fdcb6e' }}></i>
                                     {getGreeting()}
                                 </div>
                             </div>
@@ -758,9 +905,9 @@ export default function AdvancedBuddy({
                                 className={`message ${msg.role} ${msg.interim ? 'interim' : ''} ${msg.isReminder ? 'reminder-message' : ''} ${msg.isCheckIn ? 'checkin-message' : ''}`}
                             >
                                 <div className="message-content">
-                                    {msg.interim && <span className="voice-badge">listening...</span>}
-                                    {msg.isReminder && <span className="reminder-badge">⏰ Reminder</span>}
-                                    {msg.isCheckIn && <span className="checkin-badge">🤔 Check-in</span>}
+                                    {msg.interim && <span className="voice-badge"><i className="fas fa-microphone"></i> listening...</span>}
+                                    {msg.isReminder && <span className="reminder-badge"><i className="fas fa-bell"></i> Reminder</span>}
+                                    {msg.isCheckIn && <span className="checkin-badge"><i className="fas fa-question-circle"></i> Check-in</span>}
                                     {msg.content}
                                 </div>
                                 <div className="message-time">
@@ -785,13 +932,13 @@ export default function AdvancedBuddy({
 
                     {/* Input Area */}
                     <div className="buddy-input-area">
-                        {/* Mode Hint */}
                         {voiceMode !== "chat" && (
                             <div className="voice-mode-hint">
                                 <strong>
+                                    <i className={voiceMode === "notes" ? "fas fa-sticky-note" : "fas fa-tasks"} style={{ marginRight: '6px' }}></i>
                                     {voiceMode === "notes"
-                                        ? (language === "hindi" ? "📝 डेली नोट्स में लिख रहे हैं" : language === "english" ? "📝 Writing to Daily Notes" : "📝 Daily Notes mein likh rahe hain")
-                                        : (language === "hindi" ? "✅ टास्क मैनेज कर रहे हैं" : language === "english" ? "✅ Managing Tasks" : "✅ Tasks manage kar rahe hain")
+                                        ? (language === "hindi" ? "डेली नोट्स में लिख रहे हैं" : language === "english" ? "Writing to Daily Notes" : "Daily Notes mein likh rahe hain")
+                                        : (language === "hindi" ? "टास्क मैनेज कर रहे हैं" : language === "english" ? "Managing Tasks" : "Tasks manage kar rahe hain")
                                     }
                                 </strong>
                                 <span>
@@ -812,13 +959,13 @@ export default function AdvancedBuddy({
                                     if (isListening) recognitionRef.current?.stop();
                                 }}
                             >
-                                ⌨️ {language === "hindi" ? "टाइप" : language === "english" ? "Type" : "Type"}
+                                <i className="fas fa-keyboard"></i> {language === "hindi" ? "टाइप" : "Type"}
                             </button>
                             <button
                                 className={inputMode === "voice" ? "active" : ""}
                                 onClick={() => setInputMode("voice")}
                             >
-                                🎤 {language === "hindi" ? "बोलें" : language === "english" ? "Voice" : "Bolo"}
+                                <i className="fas fa-microphone"></i> {language === "hindi" ? "बोलें" : "Voice"}
                             </button>
                         </div>
 
@@ -833,7 +980,7 @@ export default function AdvancedBuddy({
                                     disabled={isProcessing}
                                 />
                                 <button type="submit" disabled={isProcessing || !inputText.trim()}>
-                                    ➤
+                                    <i className="fas fa-paper-plane"></i>
                                 </button>
                             </form>
                         )}
@@ -849,17 +996,17 @@ export default function AdvancedBuddy({
                                     {isListening ? (
                                         <>
                                             <div className="pulse-ring"></div>
-                                            🔴 {language === "hindi" ? "बंद करें" : language === "english" ? "Stop" : "Band Karo"}
+                                            <i className="fas fa-stop-circle"></i> {language === "hindi" ? "बंद करें" : language === "english" ? "Stop" : "Band Karo"}
                                         </>
                                     ) : (
                                         <>
-                                            🎤 {language === "hindi" ? "बोलना शुरू करें" : language === "english" ? "Start Speaking" : "Bolna Shuru Karo"}
+                                            <i className="fas fa-microphone"></i> {language === "hindi" ? "बोलना शुरू करें" : language === "english" ? "Start Speaking" : "Bolna Shuru Karo"}
                                         </>
                                     )}
                                 </button>
 
                                 {/* Manual text input while in voice mode */}
-                                <form className="text-input-form" onSubmit={handleTextSubmit} style={{ marginTop: '12px' }}>
+                                <form className="text-input-form" onSubmit={handleTextSubmit}>
                                     <input
                                         type="text"
                                         value={inputText}
@@ -868,7 +1015,7 @@ export default function AdvancedBuddy({
                                         disabled={isProcessing}
                                     />
                                     <button type="submit" disabled={isProcessing || !inputText.trim()}>
-                                        ➤
+                                        <i className="fas fa-paper-plane"></i>
                                     </button>
                                 </form>
                             </div>
@@ -876,8 +1023,6 @@ export default function AdvancedBuddy({
                     </div>
                 </div>
             )}
-
-
         </>
     );
 }

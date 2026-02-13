@@ -1,0 +1,95 @@
+/* ═══════════════════════════════════════════════════════════════════
+   GLOBAL MOBILE RESPONSIVE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Base Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+}
+
+/* Responsive Images */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Responsive Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    hyphens: auto;
+}
+
+/* Prevent horizontal scroll */
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Touch Friendly Buttons */
+button,
+a {
+    min-height: 44px;
+    min-width: 44px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Better scrolling on iOS */
+* {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Viewport Meta Helper */
+@viewport {
+    width: device-width;
+    zoom: 1;
+}
+
+/* Mobile Utility Classes */
+@media (max-width: 768px) {
+    .hide-mobile {
+        display: none !important;
+    }
+
+    .full-width-mobile {
+        width: 100% !important;
+    }
+}
+
+/* Tablet Utility Classes */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .hide-tablet {
+        display: none !important;
+    }
+}
+
+/* Desktop Only */
+@media (min-width: 1025px) {
+    .hide-desktop {
+        display: none !important;
+    }
+}

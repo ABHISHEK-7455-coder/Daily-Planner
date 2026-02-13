@@ -166,10 +166,11 @@
 }
 
 /* Mobile Responsive */
-@media (max-width: 768px) {
+@media (max-width: 450px) {
     .addtask-container {
         padding: 16px 18px;
         gap: 10px;
+        flex-wrap: wrap;
     }
 
     .addtask-input {

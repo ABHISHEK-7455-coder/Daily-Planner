@@ -34,3 +34,48 @@
     color: #111;
     margin-bottom: 6px;
 }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .timeline-grid {
+        height: 1200px; /* Slightly smaller for mobile */
+    }
+
+    .timeline-hour {
+        height: 50px;
+        font-size: 11px;
+        padding-left: 4px;
+    }
+
+    .timeline-task {
+        left: 60px;
+        right: 8px;
+        padding: 5px;
+        font-size: 12px;
+        border-radius: 4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .timeline-grid {
+        height: 1000px;
+    }
+
+    .timeline-hour {
+        height: 42px;
+        font-size: 10px;
+        padding-left: 3px;
+    }
+
+    .timeline-task {
+        left: 50px;
+        right: 6px;
+        padding: 4px;
+        font-size: 11px;
+    }
+
+    .timeline-task.all-day {
+        margin-bottom: 4px;
+        font-size: 12px;
+    }
+}

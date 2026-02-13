@@ -126,9 +126,10 @@
 }
 
 /* Mobile */
-@media (max-width: 768px) {
+@media (max-width: 450px) {
     .progress-container {
         padding: 20px 24px;
+        display: none;
     }
 
     .progress-title {

@@ -113,6 +113,10 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+    .task-section {
+        
+    }
+
     .task-section-title {
         font-size: 20px;
         gap: 10px;

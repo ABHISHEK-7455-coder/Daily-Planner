@@ -56,6 +56,13 @@
   min-width: 0;
 }
 
+.task-item-left-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
 /* Checkbox - Exactly like image */
 .task-item-checkbox {
   width: 24px;
@@ -295,14 +302,19 @@
 }
 
 /* Mobile Responsive */
-@media (max-width: 768px) {
+@media (max-width: 450px) {
   .task-item {
     padding: 14px 16px;
     gap: 12px;
+    display: flex;
+    flex-direction: column;
   }
 
   .task-item-actions {
     opacity: 1;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
   }
 
   .task-item-ai-btn,

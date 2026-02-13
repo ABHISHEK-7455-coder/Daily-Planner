@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
+import Header from "../components/Header";
 
 export default function Home() {
     const navigate = useNavigate();
@@ -52,31 +53,14 @@ export default function Home() {
 
     return (
         <div className="home-container">
-            <header className="home-header">
-                <div className="home-logo">
-                    <div className="logo-icon">
-                        <i className="fa-solid fa-calendar-check"></i>
-                    </div>
-                    <span className="logo-text">Cozy Space</span>
-                </div>
-                <nav className="home-nav">
-                    <button className="nav-link">
-                        <i className="fa-solid fa-crosshairs"></i> Focus
-                    </button>
-                    <button className="nav-link">
-                        <i className="fa-solid fa-book"></i> Journal
-                    </button>
-                    <button className="nav-link">
-                        <i className="fa-solid fa-gear"></i> Settings
-                    </button>
-                    <button className="nav-icon">
-                        <i className="fa-solid fa-bell"></i>
-                    </button>
-                    <div className="nav-avatar">
-                        <i className="fa-solid fa-user"></i>
-                    </div>
-                </nav>
-            </header>
+            <Header
+                tasks={tasks}
+                onFilterChange={handleFilterChange}
+                activeFilter={activeFilter}
+                onOpenReflection={openReflection}
+                onOpenWeeklySummary={openWeeklySummary}
+            />
+
 
             <main className="home-main">
                 <div className="greeting-section">

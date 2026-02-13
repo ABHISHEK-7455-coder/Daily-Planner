@@ -57,7 +57,7 @@ export default function ProgressBar({ total, completed }) {
             </div>
 
             {/* 🔥 SMART MOTIVATIONAL QUOTE */}
-            <p className="progress-quote">"{quote}"</p>
+            {/* <p className="progress-quote">"{quote}"</p> */}
         </div>
     );
 }
