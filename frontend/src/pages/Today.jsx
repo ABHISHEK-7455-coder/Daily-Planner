@@ -12,11 +12,10 @@ import DailyNotes from "../components/DailyNotes";
 import PushNotifications from "../components/PushNotifications";
 import DayCalendar from "../components/DayCalendar";
 import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
-// import AdvancedBuddy from "../components/ChatBuddy";
-
-import "./Today.css";
 import AlarmPlanner from "../components/AlarmPlanner";
 import AdvancedBuddy from "../components/Chatbuddy";
+
+import "./Today.css";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -28,6 +27,32 @@ const addDays = (date, days) => {
 
 const carryPopupKey = (date) =>
   `carry-popup-shown-${formatKey(date)}`;
+
+// 🎯 Helper to convert 24h to 12h format for AlarmPlanner
+function to12Hour(time24) {
+  if (!time24) return { hour: "6", minute: "00", period: "AM" };
+  
+  const [h, m] = time24.split(':').map(Number);
+  let hour = h;
+  let period = "AM";
+  
+  if (h === 0) {
+    hour = 12;
+    period = "AM";
+  } else if (h === 12) {
+    hour = 12;
+    period = "PM";
+  } else if (h > 12) {
+    hour = h - 12;
+    period = "PM";
+  }
+  
+  return {
+    hour: String(hour),
+    minute: String(m).padStart(2, '0'),
+    period
+  };
+}
 
 export default function Today() {
   const { date } = useParams();
@@ -58,8 +83,16 @@ export default function Today() {
   /* 🆕 BUCKET STATE */
   const [activeBucket, setActiveBucket] = useState("morning");
 
+  // 🎯 CRITICAL: Add refs for integrations
   const dailyNotesRef = useRef(null);
+  const alarmPlannerRef = useRef(null);
   const prevLoadRef = useRef("calm");
+
+  // 🎯 DEBUG: Log when refs are set
+  useEffect(() => {
+    console.log("🔍 Today.jsx: DailyNotes ref:", dailyNotesRef.current);
+    console.log("🔍 Today.jsx: AlarmPlanner ref:", alarmPlannerRef.current);
+  }, [dailyNotesRef.current, alarmPlannerRef.current]);
 
   /* 🔹 FILTER LOGIC */
   const getFilteredTasks = (timeOfDay) =>
@@ -109,7 +142,7 @@ export default function Today() {
         setLoadToast("⚡ Your day is getting busy. Prioritize wisely.");
       }
       if (newState === "overloaded") {
-        setLoadToast("🔥 This day looks heavy. It’s okay to stop adding.");
+        setLoadToast("🔥 This day looks heavy. It's okay to stop adding.");
       }
       if (prevState === "overloaded" && newState === "busy") {
         setLoadToast("🌿 Feeling lighter now. Good job clearing space.");
@@ -178,8 +211,6 @@ export default function Today() {
         timeOfDay,
         startTime,
         endTime,
-
-        // 🆕 TRACKING FIELDS
         status: "idle",
         startedAt: null,
         completedAt: null,
@@ -188,6 +219,7 @@ export default function Today() {
       ...prev,
     ]);
   };
+
   const startTask = (id) => {
     setTasks((prev) =>
       prev.map((t) =>
@@ -207,7 +239,6 @@ export default function Today() {
       prev.map((t) => {
         if (t.id !== id) return t;
 
-        // if marking COMPLETE
         if (!t.completed) {
           const now = new Date();
           let actualMinutes = null;
@@ -226,7 +257,6 @@ export default function Today() {
           };
         }
 
-        // if user unchecks (reset)
         return {
           ...t,
           completed: false,
@@ -315,13 +345,93 @@ export default function Today() {
     if (load < 10) return "busy";
     return "overloaded";
   };
-
-  const handleUpdateNotes = async (content, mode = 'append') => {
-    if (dailyNotesRef.current) {
+// 🎯 BULLETPROOF: Handle notes update from buddy
+const handleUpdateNotes = (content, mode = 'append') => {
+  console.log("═════════════════════════════════════════");
+  console.log("📝 Today.jsx: handleUpdateNotes called");
+  console.log("📝 Content:", content);
+  console.log("📝 Content length:", content.length);
+  console.log("📝 Mode:", mode);
+  console.log("📝 Current dayKey:", dayKey);
+  console.log("📝 dailyNotesRef:", dailyNotesRef);
+  console.log("📝 dailyNotesRef.current:", dailyNotesRef.current);
+  console.log("📝 dailyNotesRef.current.updateFromVoice:", dailyNotesRef.current?.updateFromVoice);
+  console.log("═════════════════════════════════════════");
+  
+  // METHOD 1: Use ref (preferred)
+  if (dailyNotesRef.current && dailyNotesRef.current.updateFromVoice) {
+    console.log("✅ METHOD 1: Calling updateFromVoice on ref");
+    try {
       dailyNotesRef.current.updateFromVoice(content, mode);
+      console.log("✅ Notes updated successfully via ref");
+      return; // Success!
+    } catch (error) {
+      console.error("❌ Error updating notes via ref:", error);
+      console.log("⚠️ Falling back to METHOD 2");
+    }
+  } else {
+    console.error("❌ Ref not available, using METHOD 2");
+  }
+  
+  // METHOD 2: Direct localStorage update + event dispatch (fallback)
+  console.log("🔄 METHOD 2: Direct localStorage update");
+  try {
+    const raw = localStorage.getItem("daily-notes");
+    const allNotes = raw ? JSON.parse(raw) : {};
+    
+    if (mode === 'append') {
+      const existingNote = allNotes[dayKey] || "";
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newNote = existingNote
+        ? `${existingNote}\n\n[${timestamp}] ${content}`
+        : `[${timestamp}] ${content}`;
+      allNotes[dayKey] = newNote;
+      console.log("📝 New note length:", newNote.length);
+    } else {
+      allNotes[dayKey] = content;
+    }
+    
+    localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+    console.log("✅ Saved to localStorage");
+    
+    // Trigger custom event to force DailyNotes to reload
+    window.dispatchEvent(new Event('notes-updated'));
+    console.log("📢 Dispatched notes-updated event");
+    
+    // Also update trigger key for storage event
+    localStorage.setItem('daily-notes-update-trigger', Date.now().toString());
+    console.log("🔔 Updated trigger key");
+    
+  } catch (error) {
+    console.error("❌ METHOD 2 failed:", error);
+    console.error("⚠️ NOTHING WORKED - Please refresh the page");
+  }
+};
+
+  // 🎯 FIXED: Handle alarm from buddy
+  const handleAddAlarm = (alarmParams) => {
+    console.log("⏰ Today.jsx: Adding alarm", alarmParams);
+    
+    // Convert 24-hour time to 12-hour for AlarmPlanner
+    const { hour, minute, period } = to12Hour(alarmParams.time);
+    
+    const alarmData = {
+      hour,
+      minute,
+      period,
+      date: alarmParams.date || "",
+      label: alarmParams.label || "Alarm",
+      repeat: alarmParams.repeat || "once"
+    };
+    
+    if (alarmPlannerRef.current && alarmPlannerRef.current.addAlarmFromBuddy) {
+      alarmPlannerRef.current.addAlarmFromBuddy(alarmData);
+      console.log("✅ Alarm added via ref");
+    } else {
+      console.error("❌ AlarmPlanner ref not available");
     }
   };
- 
+
   return (
     <div className="today-container">
       <PushNotifications />
@@ -374,7 +484,6 @@ export default function Today() {
             </div>
 
             <div className="bucket-content">
-              
               <TaskSection
                 title={activeBucket.charAt(0).toUpperCase() + activeBucket.slice(1)}
                 tasks={getFilteredTasks(activeBucket)}
@@ -383,7 +492,7 @@ export default function Today() {
                 onEdit={editTask}
                 onMove={moveTask}
                 onSnooze={snoozeTask}
-                onStart={startTask}          // 🆕 ADD
+                onStart={startTask}
                 selectedDate={dayKey}
               />
             </div>
@@ -398,8 +507,8 @@ export default function Today() {
         )}
       </main>
 
-      {/* ✅ DAY LEVEL FEATURES */}
-      <DailyNotes currentDate={currentDate} />
+      {/* 🎯 FIXED: Add ref to DailyNotes */}
+      <DailyNotes ref={dailyNotesRef} currentDate={currentDate} />
 
       {showReflection && (
         <ReflectionModal
@@ -429,6 +538,8 @@ export default function Today() {
       )}
 
       {loadToast && <div className="cognitive-toast">{loadToast}</div>}
+
+      {/* 🎯 FIXED: Pass handlers to AdvancedBuddy */}
       <AdvancedBuddy
         currentDate={dayKey}
         tasks={tasks}
@@ -436,8 +547,11 @@ export default function Today() {
         onCompleteTask={toggleTask}
         onDeleteTask={deleteTask}
         onUpdateNotes={handleUpdateNotes}
+        onAddAlarm={handleAddAlarm}
       />
-      <AlarmPlanner />
+
+      {/* 🎯 FIXED: Add ref to AlarmPlanner */}
+      <AlarmPlanner ref={alarmPlannerRef} />
     </div>
   );
 }

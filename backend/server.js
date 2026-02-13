@@ -1,4 +1,3 @@
-
 import express from "express";
 import Groq from "groq-sdk";
 import cors from "cors";
@@ -107,6 +106,20 @@ CURRENT DATE: ${new Date().toLocaleDateString()}
 CURRENT DATE: ${currentYear}-${currentMonth}-${currentDay}
 TOMORROW: ${tomorrow}
 
+REMINDER vs TASK - CRITICAL DISTINCTION:
+
+Use **set_reminder** when:
+✅ "remind me in 5 min" 
+✅ "5 min mai yaad dilana"
+✅ "reminder set karo 10:30 pe"
+✅ User wants a NOTIFICATION only
+
+Use **add_task** when:
+✅ "add task X"
+✅ "X karna hai Y time pe" (I need to do X at Y time)
+✅ User wants to ADD TO TASK LIST
+
+NEVER confuse these two!
 ═══════════════════════════════════════════════════════════════
 ALARM TOOL USAGE - CRITICAL RULES:
 ═══════════════════════════════════════════════════════════════
@@ -260,9 +273,60 @@ app.post("/api/advanced-chat", async (req, res) => {
         const selectedLanguage = language || "hinglish";
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
-        // Add mode-specific instructions
         if (isVoice && voiceMode === 'notes') {
-            systemPrompt += `\n\nVOICE NOTES MODE: User is dictating. Call update_notes tool. Be brief: "Got it!" or "Noted!"`;
+            systemPrompt += `\n\n═══════════════════════════════════════════════════════════
+VOICE NOTES MODE - MANDATORY TOOL USAGE:
+═══════════════════════════════════════════════════════════
+
+⚠️ CRITICAL: You MUST ALWAYS call the update_notes tool! NEVER just respond without calling it!
+
+WRONG BEHAVIOR (DO NOT DO THIS):
+User: "notes mein add kar do - xyz"
+You: "📝 Notes mein add ho gaya!" ← NO! Missing tool call!
+
+CORRECT BEHAVIOR (ALWAYS DO THIS):
+User: "notes mein add kar do - xyz"
+You: [Call update_notes tool with content="xyz"]
+Then respond: "📝 Notes mein add ho gaya!"
+
+═══════════════════════════════════════════════════════════
+
+CONTENT RULES:
+1. Call update_notes with user's EXACT words
+2. DO NOT summarize, shorten, or change ANYTHING
+3. DO NOT translate - keep it in the SAME language user spoke
+4. Include EVERYTHING user said, even if it's 100+ words long
+5. After calling the tool, respond: "📝 Notes mein add ho gaya!"
+
+REMOVE ONLY THESE INSTRUCTION PHRASES:
+- "bhai add kar de"
+- "notes mein add kar do" 
+- "meri daily notes mein add kar do"
+- "daily notes mein add kar do"
+- "usko bhi add kar do"
+- "add this to notes"
+
+Keep EVERYTHING ELSE word-for-word!
+
+═══════════════════════════════════════════════════════════
+EXAMPLES:
+═══════════════════════════════════════════════════════════
+
+User: "Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai"
+❌ WRONG: Just respond "Notes mein add ho gaya!"
+✅ CORRECT: Call update_notes("Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai")
+
+User: "Main Bahar Gai college Gai Thi college se pet Ghar I Ghar aane ke bad Maine Kuchh khana vana khaya FIR Meri class Thi use attend kara usmein projects ka notes vagaira Banaya"
+❌ WRONG: Summarize to "College gai, khana khaya, class attend kari"
+✅ CORRECT: Call update_notes with FULL TEXT above (all 40+ words)
+
+User: "aur FIR main Apna Kam karne ke bad Kuchh Soch rahi thi sochne ke bad FIR Maine tas complete kara gift Pushkar Mein so gai"
+✅ CORRECT: Call update_notes with exact text
+
+═══════════════════════════════════════════════════════════
+
+REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
+═══════════════════════════════════════════════════════════`;
         } else if (isVoice && voiceMode === 'tasks') {
             systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
         }
@@ -270,49 +334,73 @@ app.post("/api/advanced-chat", async (req, res) => {
         const recentMessages = messages.slice(-20);
 
         const tools = [
-              {
-    type: "function",
-    function: {
-      name: "set_alarm",
-      description: "Set an alarm with sound and vibration. For wake-up alarms, meeting reminders, birthday alerts, etc.",
-      parameters: {
-        type: "object",
-        properties: {
-          time: {
-            type: "string",
-            description: "Time in HH:MM 24-hour format (e.g., '05:00', '17:30', '23:00')"
-          },
-          date: {
-            type: "string",
-            description: "Date in YYYY-MM-DD format (e.g., '2026-02-23'). Use empty string if no specific date."
-          },
-          label: {
-            type: "string",
-            description: "What the alarm is for (e.g., 'wake up', 'meeting', 'gym')"
-          },
-          repeat: {
-            type: "string",
-            enum: ["once", "daily", "custom"],
-            description: "Repeat pattern: once, daily, or custom (weekdays)"
-          }
+            {
+  type: "function",
+  function: {
+    name: "set_reminder",
+    description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
+    parameters: {
+      type: "object",
+      properties: {
+        time: { 
+          type: "string", 
+          description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
         },
-        required: ["time"]
-      }
+        message: { 
+          type: "string", 
+          description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
+        }
+      },
+      required: ["time", "message"]
     }
-  },
+  }
+},
+            {
+                type: "function",
+                function: {
+                    name: "set_alarm",
+                    description: "Set an alarm with sound and vibration",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            time: {
+                                type: "string",
+                                description: "Time in HH:MM 24-hour format"
+                            },
+                            date: {
+                                type: "string",
+                                description: "Date in YYYY-MM-DD format. Use empty string if no date."
+                            },
+                            label: {
+                                type: "string",
+                                description: "What the alarm is for"
+                            },
+                            repeat: {
+                                type: "string",
+                                enum: ["once", "daily", "custom"],
+                                description: "Repeat pattern"
+                            }
+                        },
+                        required: ["time"]
+                    }
+                }
+            },
             {
                 type: "function",
                 function: {
                     name: "update_notes",
-                    description: "Update daily notes. Use in notes mode when user dictates content.",
+                    description: "Update daily notes. CRITICAL: You MUST pass the user's EXACT words in the content parameter. DO NOT summarize, shorten, translate, or change ANY words. If user says 50 words, content parameter MUST have all 50 words. If you summarize or shorten, the notes will be WRONG and INCOMPLETE.",
                     parameters: {
                         type: "object",
                         properties: {
-                            content: { type: "string", description: "Text to add to notes" },
+                            content: { 
+                                type: "string",
+                                description: "User's EXACT spoken words with NO changes, NO summarization, NO translation. Must be word-for-word identical to what user said (excluding only instruction phrases like 'add kar do'). If user spoke 100 words, this parameter MUST contain all 100 words in the exact same language and order."
+                            },
                             mode: {
                                 type: "string",
                                 enum: ["append", "replace"],
-                                description: "append=add to existing, replace=overwrite"
+                                description: "append = add to end of existing notes (default), replace = overwrite all notes"
                             }
                         },
                         required: ["content"]
@@ -323,27 +411,17 @@ app.post("/api/advanced-chat", async (req, res) => {
                 type: "function",
                 function: {
                     name: "add_task",
-                    description: "Add task. CRITICAL: Extract startTime from user message if ANY time mentioned.",
+                    description: "Add task",
                     parameters: {
                         type: "object",
                         properties: {
-                            title: {
-                                type: "string",
-                                description: "Task title/description"
-                            },
+                            title: { type: "string" },
                             timeOfDay: {
                                 type: "string",
-                                enum: ["morning", "afternoon", "evening"],
-                                description: "morning (5am-12pm), afternoon (12pm-5pm), evening (5pm-5am)"
+                                enum: ["morning", "afternoon", "evening"]
                             },
-                            startTime: {
-                                type: "string",
-                                description: "HH:MM format (24-hour). MUST extract if user mentions time. Examples: '23:00', '00:10', '09:00'"
-                            },
-                            endTime: {
-                                type: "string",
-                                description: "HH:MM format (24-hour). Optional end time."
-                            }
+                            startTime: { type: "string" },
+                            endTime: { type: "string" }
                         },
                         required: ["title", "timeOfDay"]
                     }
@@ -353,14 +431,11 @@ app.post("/api/advanced-chat", async (req, res) => {
                 type: "function",
                 function: {
                     name: "complete_task",
-                    description: "Mark task done. Use EXACT task title from pending tasks list.",
+                    description: "Mark task done",
                     parameters: {
                         type: "object",
                         properties: {
-                            taskTitle: {
-                                type: "string",
-                                description: "EXACT task title from the pending tasks list shown above"
-                            }
+                            taskTitle: { type: "string" }
                         },
                         required: ["taskTitle"]
                     }
@@ -370,14 +445,11 @@ app.post("/api/advanced-chat", async (req, res) => {
                 type: "function",
                 function: {
                     name: "delete_task",
-                    description: "Delete task. Use EXACT task title from tasks list.",
+                    description: "Delete task",
                     parameters: {
                         type: "object",
                         properties: {
-                            taskTitle: {
-                                type: "string",
-                                description: "EXACT task title from the tasks list shown above"
-                            }
+                            taskTitle: { type: "string" }
                         },
                         required: ["taskTitle"]
                     }
@@ -394,7 +466,7 @@ app.post("/api/advanced-chat", async (req, res) => {
             tools: tools,
             tool_choice: "auto",
             temperature: 0.7,
-            max_tokens: 300
+            max_tokens: 1000  // Increased for long notes
         });
 
         const response = completion.choices[0];
@@ -403,15 +475,59 @@ app.post("/api/advanced-chat", async (req, res) => {
         const actions = [];
         if (response.message.tool_calls) {
             for (const toolCall of response.message.tool_calls) {
-                const params = JSON.parse(toolCall.function.arguments);
+                try {
+                    const params = JSON.parse(toolCall.function.arguments);
 
-                // Log for debugging
-                console.log(`AI called: ${toolCall.function.name}`, params);
+                    // 🎯 CRITICAL FIX: Clean up null values for set_alarm
+                    if (toolCall.function.name === "set_alarm") {
+                        if (params.date === null || params.date === undefined) {
+                            params.date = "";
+                        }
+                        if (!params.label) {
+                            params.label = "Alarm";
+                        }
+                        if (!params.repeat) {
+                            params.repeat = "once";
+                        }
+                    }
 
-                actions.push({
-                    type: toolCall.function.name,
-                    params: params
-                });
+                    // 🎯 NEW: Validate update_notes content isn't summarized
+                    if (toolCall.function.name === "update_notes" && voiceMode === 'notes') {
+                        const userMessage = recentMessages[recentMessages.length - 1]?.content || "";
+                        const noteContent = params.content || "";
+                        
+                        // Remove common instruction phrases from user message
+                        const cleanedUserMsg = userMessage
+                            .replace(/bhai add kar de/gi, '')
+                            .replace(/notes? mein add kar do/gi, '')
+                            .replace(/meri daily notes? mein add kar do/gi, '')
+                            .replace(/daily notes? mein add kar do/gi, '')
+                            .replace(/usko bhi add kar do/gi, '')
+                            .replace(/add (this|that|it) to notes?/gi, '')
+                            .trim();
+                        
+                        // Check if content is significantly shorter (more than 30% shorter = likely summarized)
+                        const userWordCount = cleanedUserMsg.split(/\s+/).length;
+                        const noteWordCount = noteContent.split(/\s+/).length;
+                        
+                        console.log(`📊 Word count check: User=${userWordCount}, Note=${noteWordCount}`);
+                        
+                        if (noteWordCount < userWordCount * 0.7) {
+                            console.warn(`⚠️ POSSIBLE SUMMARIZATION DETECTED! Using user's original words instead.`);
+                            // Use the cleaned user message instead
+                            params.content = cleanedUserMsg;
+                        }
+                    }
+
+                    console.log(`✅ Tool: ${toolCall.function.name}`, params);
+
+                    actions.push({
+                        type: toolCall.function.name,
+                        params: params
+                    });
+                } catch (parseError) {
+                    console.error("Parse error:", parseError);
+                }
             }
         }
 
