@@ -10,6 +10,7 @@ export default function TaskSection({
     onEdit,
     onMove,
     onSnooze,
+    onStart,          // 🆕 ADD
     selectedDate
 }) {
     if (!selectedDate || tasks.length === 0) return null;
@@ -73,7 +74,9 @@ export default function TaskSection({
                         onEdit={onEdit}
                         onMove={onMove}
                         onSnooze={onSnooze}
+                        onStart={onStart}     // 🆕 PASS DOWN
                     />
+
                 ))}
             </div>
 

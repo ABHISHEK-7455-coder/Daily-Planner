@@ -1,62 +1,224 @@
+/* ➕ ADDTASK.CSS - Cozy Desk Style */
+
 .addtask-container {
+    background: #ffffff;
+    padding: 20px 24px;
+    border-radius: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    margin-bottom: 24px;
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 32px;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 4px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    flex-wrap: wrap;
+    transition: all 0.3s ease;
 }
 
 .addtask-container:focus-within {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
 }
 
+/* Input Field */
 .addtask-input {
     flex: 1;
-    border: none;
-    outline: none;
-    padding: 14px 16px;
+    min-width: 250px;
+    padding: 14px 18px;
+    border: 2px solid #f5f5f7;
+    border-radius: 16px;
     font-size: 15px;
-    color: #1a1a1a;
-    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    background: #f5f5f7;
+    transition: all 0.2s ease;
+    color: #2d2d2d;
+    font-weight: 500;
+}
+
+.addtask-input:focus {
+    outline: none;
+    border-color: #ddc9ff;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(221, 201, 255, 0.1);
 }
 
 .addtask-input::placeholder {
-    color: #9ca3af;
+    color: #999999;
+    font-weight: 400;
+    font-style: italic;
 }
 
+/* Select Dropdown */
+.addtask-container select {
+    padding: 14px 16px;
+    border: 2px solid #f5f5f7;
+    border-radius: 16px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    background: #ffffff;
+    color: #2d2d2d;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    min-width: 140px;
+}
+
+.addtask-container select:hover {
+    border-color: #c9e3ff;
+}
+
+.addtask-container select:focus {
+    outline: none;
+    border-color: #ddc9ff;
+    box-shadow: 0 0 0 4px rgba(221, 201, 255, 0.1);
+}
+
+/* Time Toggle Checkbox */
+.addtask-time-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    padding: 8px 12px;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    color: #666666;
+}
+
+.addtask-time-toggle:hover {
+    background: #f5f5f7;
+}
+
+.addtask-time-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #ddc9ff;
+}
+
+/* Time Range Inputs */
+.addtask-time-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f5f5f7;
+    border-radius: 16px;
+}
+
+.addtask-time-range input[type="time"] {
+    padding: 8px 12px;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    background: #ffffff;
+    color: #2d2d2d;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.addtask-time-range input[type="time"]:hover {
+    border-color: #c9e3ff;
+}
+
+.addtask-time-range input[type="time"]:focus {
+    outline: none;
+    border-color: #ddc9ff;
+}
+
+.addtask-time-range span {
+    color: #999999;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+/* Submit Button */
 .addtask-submit-btn {
-    background: #3b82f6;
+    width: 48px;
+    height: 48px;
     border: none;
-    border-radius: 8px;
-    width: 40px;
-    height: 40px;
+    background: linear-gradient(135deg, #ffc9d4 0%, #ddc9ff 100%);
+    border-radius: 50%;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    color: white;
-}
-
-.addtask-submit-btn:hover {
-    background: #2563eb;
-}
-
-.addtask-submit-btn:active {
-    transform: scale(0.95);
-}
-
-.addtask-submit-icon {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 12px rgba(255, 201, 212, 0.3);
     flex-shrink: 0;
 }
 
-.addtask-container select {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 2px 8px;
+.addtask-submit-btn:hover {
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 4px 20px rgba(255, 201, 212, 0.5);
+}
+
+.addtask-submit-btn:active {
+    transform: scale(0.95) rotate(90deg);
+}
+
+.addtask-submit-icon {
+    color: #2d2d2d;
+    transition: transform 0.3s ease;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .addtask-container {
+        padding: 16px 18px;
+        gap: 10px;
+    }
+
+    .addtask-input {
+        min-width: 100%;
+        font-size: 14px;
+        padding: 12px 16px;
+    }
+
+    .addtask-container select {
+        min-width: 120px;
+        font-size: 13px;
+        padding: 12px 14px;
+    }
+
+    .addtask-time-toggle {
+        font-size: 13px;
+    }
+
+    .addtask-time-range {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .addtask-submit-btn {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* Tablet */
+@media (max-width: 1024px) and (min-width: 769px) {
+    .addtask-input {
+        min-width: 200px;
+    }
+}
+
+/* Animation */
+.addtask-container {
+    animation: slide-down 0.3s ease;
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
