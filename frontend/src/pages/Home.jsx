@@ -53,14 +53,7 @@ export default function Home() {
 
     return (
         <div className="home-container">
-            <Header
-                tasks={tasks}
-                onFilterChange={handleFilterChange}
-                activeFilter={activeFilter}
-                onOpenReflection={openReflection}
-                onOpenWeeklySummary={openWeeklySummary}
-            />
-
+            <Header />
 
             <main className="home-main">
                 <div className="greeting-section">

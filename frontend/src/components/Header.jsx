@@ -2,14 +2,13 @@ import { useState } from "react";
 import "./Header.css";
 import Sidebar from "./Sidebar";
 import AlarmPlanner from "./AlarmPlanner";
+import { useNavigate } from "react-router-dom";
 
 export default function Header(props) {
     const [openTasks, setOpenTasks] = useState(false);
     const [openAlarm, setOpenAlarm] = useState(false); // ✅ NEW
-    const [menuOpen, setMenuOpen] = useState(false);
-
-    const toggleMenu = () => setMenuOpen(prev => !prev);
-
+    
+const navigate = useNavigate()
     const toggleTasks = () => {
         setOpenTasks(prev => !prev);
         setOpenAlarm(false); // ek time par ek hi open rahe
@@ -19,7 +18,6 @@ export default function Header(props) {
     const toggleAlarm = () => {
         setOpenAlarm(prev => !prev);
         setOpenTasks(false);
-        setMenuOpen(false);
     };
 
     const closeAll = () => {
@@ -30,33 +28,24 @@ export default function Header(props) {
 
     return (
         <header className="home-header">
-            <div className="home-topbar">
-                <div className="home-logo">
-                    <div className="logo-icon">
-                        <i className="fa-solid fa-calendar-check"></i>
-                    </div>
-                    <span className="logo-text">Cozy Space</span>
+            <div className="home-logo" onClick={()=>navigate("/")}>
+                <div className="logo-icon">
+                    <i className="fa-solid fa-calendar-check"></i>
                 </div>
-
-                {/* Hamburger */}
-                <button className={`hamburger ${menuOpen ? "active" : ""}`} onClick={toggleMenu}>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
+                <span className="logo-text">Cozy Space</span>
             </div>
 
-            {/* ✅ DOWNWARD DROPDOWN */}
-            <div className={`nav-dropdown ${menuOpen ? "open" : ""}`}>
-                <button className="nav-link" onClick={toggleTasks}>
+            <nav className="home-nav">
+                <button className="header-nav-link" onClick={toggleTasks}>
                     <i className="fa-solid fa-crosshairs"></i> TASKS
                 </button>
 
-                <button className="nav-link" onClick={toggleAlarm}>
+                <button className="header-nav-link" onClick={toggleAlarm}>
                     <i className="fa-solid fa-clock"></i> ALARM
                 </button>
 
-                <button className="nav-link">
+
+                {/* <button className="header-nav-link">
                     <i className="fa-solid fa-gear"></i> Settings
                 </button>
 
@@ -66,16 +55,22 @@ export default function Header(props) {
 
                 <div className="nav-avatar">
                     <i className="fa-solid fa-user"></i>
-                </div>
-            </div>
+                </div> */}
+            </nav>
 
-            {openTasks && <Sidebar {...props} asDropdown onClose={closeAll} />}
+            {openTasks && (
+                <Sidebar
+                    {...props}
+                    asDropdown={true}
+                    onClose={closeAll}
+
+                />
+            )}
             {openAlarm && (
                 <div className="alarm-dropdown">
-                    <Alarm onClose={closeAll} />
+                    <AlarmPlanner onClose={closeAll} />
                 </div>
             )}
         </header>
-
     );
 }
