@@ -60,6 +60,7 @@ function buildSystemPrompt(language, taskContext) {
     const tomorrowDate = new Date(currentDate);
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+    
     const langGuide = {
         hindi: {
             tone: "Simple, friendly Hindi. Avoid heavy words.",
@@ -106,89 +107,36 @@ CURRENT DATE: ${new Date().toLocaleDateString()}
 CURRENT DATE: ${currentYear}-${currentMonth}-${currentDay}
 TOMORROW: ${tomorrow}
 
-REMINDER vs TASK - CRITICAL DISTINCTION:
-
-Use **set_reminder** when:
-✅ "remind me in 5 min" 
-✅ "5 min mai yaad dilana"
-✅ "reminder set karo 10:30 pe"
-✅ User wants a NOTIFICATION only
-
-Use **add_task** when:
-✅ "add task X"
-✅ "X karna hai Y time pe" (I need to do X at Y time)
-✅ User wants to ADD TO TASK LIST
-
-NEVER confuse these two!
 ═══════════════════════════════════════════════════════════════
-ALARM TOOL USAGE - CRITICAL RULES:
+ALARM TOOL - CRITICAL RULES:
 ═══════════════════════════════════════════════════════════════
 
-Use set_alarm for:
-- "set alarm 5 AM" 
-- "23 feb meeting alarm"
-- "wake me up at 7"
-- "daily alarm 6:30 am"
+Use **set_alarm** for ALL alarm requests:
+✅ "alarm set kar do 3 PM"
+✅ "11 PM ka alarm"
+✅ "set alarm 3:00 PM Mujhe bahar jana hai"
+✅ "wake me at 7"
 
-PARAMETER RULES:
-1. time: ALWAYS required, HH:MM 24-hour format
-2. date: If mentioned → "YYYY-MM-DD", if NOT mentioned → "" (empty string, NOT null!)
-3. label: Extract from user's words, or use "Alarm"
-4. repeat: "once" (default), "daily", or "custom"
-
-TIME CONVERSION:
-"5 AM" → "05:00"
-"5:30 PM" → "17:30"  
+TIME CONVERSION - ALWAYS 24-HOUR FORMAT:
+"3 PM" → "15:00"
+"3:00 PM" → "15:00"
 "11 PM" → "23:00"
-"midnight" → "00:00"
-"noon" → "12:00"
+"11:00 PM" → "23:00"
+"7 AM" → "07:00"
+"7:00 AM" → "07:00"
 
-DATE CONVERSION:
-"23 feb" → "${currentYear}-02-23"
-"february 18" → "${currentYear}-02-18"
-"tomorrow" → "${tomorrow}"
-"today" → "${currentYear}-${currentMonth}-${currentDay}"
-NO DATE MENTIONED → "" (empty string)
+CRITICAL: Always call set_alarm when user mentions "alarm"!
 
 EXAMPLES:
 
-User: "set alarm for 5 AM"
-→ set_alarm(time="05:00", date="", label="Alarm", repeat="once")
+User: "alarm set kar do 3:00 P.M Ka Mujhe bahar jana hai"
+→ set_alarm(time="15:00", date="", label="bahar jana hai", repeat="once")
 
-User: "23 feb meeting alarm laga do"
+User: "alarm add kar do 11:00 PM Ka"
+→ set_alarm(time="23:00", date="", label="Alarm", repeat="once")
+
+User: "23 feb meeting alarm laga do 9 AM"
 → set_alarm(time="09:00", date="${currentYear}-02-23", label="meeting", repeat="once")
-
-User: "18 february friend birthday 8 baje"
-→ set_alarm(time="08:00", date="${currentYear}-02-18", label="friend birthday", repeat="once")
-
-User: "wake me up at 7:30 tomorrow"
-→ set_alarm(time="07:30", date="${tomorrow}", label="wake up", repeat="once")
-
-User: "daily 6 am alarm"
-→ set_alarm(time="06:00", date="", label="daily alarm", repeat="daily")
-
-User: "9:35 pe alarm set karo"
-→ set_alarm(time="09:35", date="", label="Alarm", repeat="once")
-
-CRITICAL: NEVER send null! Always use empty string "" if no date.
-
-Keep replies SHORT (1-2 sentences).
-═══════════════════════════════════════════════════════════════
-CRITICAL TIME EXTRACTION RULES:
-═══════════════════════════════════════════════════════════════
-
-ALWAYS extract time when user mentions it:
-- "23:00 pe task add karo" → startTime: "23:00"
-- "12:10 am pe" → startTime: "00:10" (convert AM/PM to 24-hour!)
-- "5 min mai" → calculate current time + 5 mins → startTime
-- "subah 9 baje" → startTime: "09:00"
-- "shaam 6 baje" → startTime: "18:00"
-- "12:10 se 12:30 tak" → startTime: "00:10", endTime: "00:30"
-
-DETERMINING timeOfDay:
-- 05:00 - 11:59 → "morning"
-- 12:00 - 16:59 → "afternoon"  
-- 17:00 - 04:59 → "evening"
 
 ═══════════════════════════════════════════════════════════════
 TOOL USAGE RULES:
@@ -196,65 +144,18 @@ TOOL USAGE RULES:
 
 Use **add_task** when:
 ✅ User says: "add task", "task banao", "X karna hai Y time pe"
-✅ ALWAYS include startTime if user mentions ANY time
-✅ Extract title, time, and timeOfDay correctly
 
 Use **complete_task** when:
-✅ "ho gaya", "done", "complete ho gaya", "kar liya"
-✅ Match task by searching in task list - use EXACT title from pending tasks
+✅ "ho gaya", "done", "complete ho gaya"
 
 Use **delete_task** when:
-✅ "delete karo", "hat jao", "remove karo"
-✅ Match task by searching in task list - use EXACT title from tasks
+✅ "delete karo", "remove karo"
 
 Use **update_notes** when in notes mode:
 ✅ User dictates thoughts
-✅ Add timestamp and content
+✅ ALWAYS call the tool - NEVER just respond without calling it
 
-═══════════════════════════════════════════════════════════════
-TASK COMPLETION MOTIVATION:
-═══════════════════════════════════════════════════════════════
-
-When checking on tasks:
-- Don't just ask "ho gaya?" - be specific: "Writing documentation ho gaya?"
-- If user says no, immediately offer help:
-  "Koi problem aa rahi hai? Main steps de sakta hoon!"
-- Break big tasks into micro-steps
-- Celebrate every completion enthusiastically
-
-═══════════════════════════════════════════════════════════════
-EXAMPLES:
-═══════════════════════════════════════════════════════════════
-
-User: "git push task add karo 23:00 pe"
-You: [Call add_task("git push", "evening", "23:00", null)]
-Response: "✅ Git push task add ho gaya (23:00 pe)!"
-
-User: "12:10 am se 12:30 am tak code review"
-You: [Call add_task("code review", "evening", "00:10", "00:30")]
-Response: "✅ Code review add ho gaya (00:10 - 00:30)!"
-
-User: "documentation task delete karo"
-You: [Call delete_task("documentation")]
-Response: "🗑️ Documentation task delete ho gaya!"
-
-User: "writing done ho gaya"
-You: [Call complete_task("writing")]
-Response: "🎉 Awesome! Writing complete! Agli task ready ho?"
-
-User: "documentation ka task nahi ho raha"
-You: "Koi baat nahi! Yeh karo:
-1. Pehle main points list karo (2 min)
-2. Har point ko 1-2 sentences mein expand karo (5 min)
-3. Review karo (1 min)
-
-Start small - pehla step kar lo!"
-
-REMEMBER:
-- Extract time EVERY time user mentions it
-- Be motivating and proactive
-- Help complete tasks, don't just track them
-- Short, actionable responses
+Keep replies SHORT (1-2 sentences).
 `.trim();
 }
 
@@ -280,100 +181,55 @@ VOICE NOTES MODE - MANDATORY TOOL USAGE:
 
 ⚠️ CRITICAL: You MUST ALWAYS call the update_notes tool! NEVER just respond without calling it!
 
-WRONG BEHAVIOR (DO NOT DO THIS):
-User: "notes mein add kar do - xyz"
-You: "📝 Notes mein add ho gaya!" ← NO! Missing tool call!
-
-CORRECT BEHAVIOR (ALWAYS DO THIS):
-User: "notes mein add kar do - xyz"
-You: [Call update_notes tool with content="xyz"]
-Then respond: "📝 Notes mein add ho gaya!"
-
-═══════════════════════════════════════════════════════════
+WRONG: User says something → You respond "Notes mein add ho gaya!" (NO TOOL CALL)
+CORRECT: User says something → Call update_notes() → Then respond "Notes mein add ho gaya!"
 
 CONTENT RULES:
 1. Call update_notes with user's EXACT words
-2. DO NOT summarize, shorten, or change ANYTHING
-3. DO NOT translate - keep it in the SAME language user spoke
-4. Include EVERYTHING user said, even if it's 100+ words long
-5. After calling the tool, respond: "📝 Notes mein add ho gaya!"
+2. DO NOT summarize or shorten
+3. Include EVERYTHING user said
 
-REMOVE ONLY THESE INSTRUCTION PHRASES:
-- "bhai add kar de"
-- "notes mein add kar do" 
-- "meri daily notes mein add kar do"
-- "daily notes mein add kar do"
-- "usko bhi add kar do"
-- "add this to notes"
-
-Keep EVERYTHING ELSE word-for-word!
-
-═══════════════════════════════════════════════════════════
-EXAMPLES:
-═══════════════════════════════════════════════════════════
-
-User: "Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai"
-❌ WRONG: Just respond "Notes mein add ho gaya!"
-✅ CORRECT: Call update_notes("Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai")
-
-User: "Main Bahar Gai college Gai Thi college se pet Ghar I Ghar aane ke bad Maine Kuchh khana vana khaya FIR Meri class Thi use attend kara usmein projects ka notes vagaira Banaya"
-❌ WRONG: Summarize to "College gai, khana khaya, class attend kari"
-✅ CORRECT: Call update_notes with FULL TEXT above (all 40+ words)
-
-User: "aur FIR main Apna Kam karne ke bad Kuchh Soch rahi thi sochne ke bad FIR Maine tas complete kara gift Pushkar Mein so gai"
-✅ CORRECT: Call update_notes with exact text
-
-═══════════════════════════════════════════════════════════
-
-REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
+Remove only instruction phrases like "notes mein add kar do"
 ═══════════════════════════════════════════════════════════`;
-        } else if (isVoice && voiceMode === 'tasks') {
-            systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
         }
 
         const recentMessages = messages.slice(-20);
 
         const tools = [
             {
-  type: "function",
-  function: {
-    name: "set_reminder",
-    description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
-    parameters: {
-      type: "object",
-      properties: {
-        time: { 
-          type: "string", 
-          description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
-        },
-        message: { 
-          type: "string", 
-          description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
-        }
-      },
-      required: ["time", "message"]
-    }
-  }
-},
+                type: "function",
+                function: {
+                    name: "set_reminder",
+                    description: "Set a timed reminder notification",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            time: { type: "string", description: "Time in HH:MM 24-hour format" },
+                            message: { type: "string", description: "What to remind about" }
+                        },
+                        required: ["time", "message"]
+                    }
+                }
+            },
             {
                 type: "function",
                 function: {
                     name: "set_alarm",
-                    description: "Set an alarm with sound and vibration",
+                    description: "Set an alarm with sound and vibration. ALWAYS use this when user says 'alarm'.",
                     parameters: {
                         type: "object",
                         properties: {
                             time: {
                                 type: "string",
-                                description: "Time in HH:MM 24-hour format"
+                                description: "Time in HH:MM 24-hour format. CRITICAL: Convert AM/PM to 24-hour. 3 PM = 15:00, 11 PM = 23:00"
                             },
                             date: {
                                 type: "string",
-                                description: "Date in YYYY-MM-DD format. Use empty string if no date."
+                                description: "Date in YYYY-MM-DD format. Use empty string if no date mentioned."
                             },
                             label: {
                                 type: "string",
-                                description: "What the alarm is for"
+                                description: "What the alarm is for. Extract from user's message."
                             },
                             repeat: {
                                 type: "string",
@@ -389,18 +245,17 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
                 type: "function",
                 function: {
                     name: "update_notes",
-                    description: "Update daily notes. CRITICAL: You MUST pass the user's EXACT words in the content parameter. DO NOT summarize, shorten, translate, or change ANY words. If user says 50 words, content parameter MUST have all 50 words. If you summarize or shorten, the notes will be WRONG and INCOMPLETE.",
+                    description: "Update daily notes. Pass user's EXACT words, no summarization.",
                     parameters: {
                         type: "object",
                         properties: {
                             content: { 
                                 type: "string",
-                                description: "User's EXACT spoken words with NO changes, NO summarization, NO translation. Must be word-for-word identical to what user said (excluding only instruction phrases like 'add kar do'). If user spoke 100 words, this parameter MUST contain all 100 words in the exact same language and order."
+                                description: "User's EXACT spoken words"
                             },
                             mode: {
                                 type: "string",
-                                enum: ["append", "replace"],
-                                description: "append = add to end of existing notes (default), replace = overwrite all notes"
+                                enum: ["append", "replace"]
                             }
                         },
                         required: ["content"]
@@ -416,10 +271,7 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
                         type: "object",
                         properties: {
                             title: { type: "string" },
-                            timeOfDay: {
-                                type: "string",
-                                enum: ["morning", "afternoon", "evening"]
-                            },
+                            timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"] },
                             startTime: { type: "string" },
                             endTime: { type: "string" }
                         },
@@ -466,7 +318,7 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
             tools: tools,
             tool_choice: "auto",
             temperature: 0.7,
-            max_tokens: 1000  // Increased for long notes
+            max_tokens: 1000
         });
 
         const response = completion.choices[0];
@@ -478,7 +330,7 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
                 try {
                     const params = JSON.parse(toolCall.function.arguments);
 
-                    // 🎯 CRITICAL FIX: Clean up null values for set_alarm
+                    // Clean up null values for set_alarm
                     if (toolCall.function.name === "set_alarm") {
                         if (params.date === null || params.date === undefined) {
                             params.date = "";
@@ -491,30 +343,26 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
                         }
                     }
 
-                    // 🎯 NEW: Validate update_notes content isn't summarized
+                    // Validate update_notes content
                     if (toolCall.function.name === "update_notes" && voiceMode === 'notes') {
                         const userMessage = recentMessages[recentMessages.length - 1]?.content || "";
                         const noteContent = params.content || "";
                         
-                        // Remove common instruction phrases from user message
                         const cleanedUserMsg = userMessage
                             .replace(/bhai add kar de/gi, '')
                             .replace(/notes? mein add kar do/gi, '')
                             .replace(/meri daily notes? mein add kar do/gi, '')
                             .replace(/daily notes? mein add kar do/gi, '')
                             .replace(/usko bhi add kar do/gi, '')
-                            .replace(/add (this|that|it) to notes?/gi, '')
                             .trim();
                         
-                        // Check if content is significantly shorter (more than 30% shorter = likely summarized)
-                        const userWordCount = cleanedUserMsg.split(/\s+/).length;
-                        const noteWordCount = noteContent.split(/\s+/).length;
+                        const userWordCount = cleanedUserMsg.split(/\s+/).filter(w => w.length > 0).length;
+                        const noteWordCount = noteContent.split(/\s+/).filter(w => w.length > 0).length;
                         
-                        console.log(`📊 Word count check: User=${userWordCount}, Note=${noteWordCount}`);
+                        console.log(`📊 Word count: User=${userWordCount}, Note=${noteWordCount}`);
                         
-                        if (noteWordCount < userWordCount * 0.7) {
-                            console.warn(`⚠️ POSSIBLE SUMMARIZATION DETECTED! Using user's original words instead.`);
-                            // Use the cleaned user message instead
+                        if (noteWordCount < userWordCount * 0.7 && userWordCount > 5) {
+                            console.warn(`⚠️ Summarization detected! Using original.`);
                             params.content = cleanedUserMsg;
                         }
                     }
@@ -541,7 +389,8 @@ REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
 
     } catch (error) {
         console.error("Advanced chat error:", error);
-        res.status(500).json({ error: "Something went wrong" });
+        console.error("Error details:", error.message);
+        res.status(500).json({ error: "Something went wrong", details: error.message });
     }
 });
 
