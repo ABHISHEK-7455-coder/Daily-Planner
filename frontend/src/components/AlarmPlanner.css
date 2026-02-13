@@ -1,17 +1,3 @@
-<<<<<<< HEAD
-.planner {
-    padding: 20px;
-    max-width: 500px;
-    margin: auto;
-    font-family: sans-serif;
-}
-
-.form input,
-.form select,
-.form button {
-    margin: 6px;
-    padding: 8px;
-=======
 /* ===================== ALARM PLANNER - COZY THEME ===================== */
 
 .planner {
@@ -202,15 +188,11 @@
     list-style: none;
     padding: 0;
     margin: 0;
->>>>>>> recovery-branch
 }
 
 .list li {
     display: flex;
     justify-content: space-between;
-<<<<<<< HEAD
-    margin: 10px 0;
-=======
     align-items: center;
     padding: 16px 20px;
     margin: 10px 0;
@@ -272,77 +254,28 @@
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-2px); }
     75% { transform: translateX(2px); }
->>>>>>> recovery-branch
 }
 
 /* ===== Overlay ===== */
 .overlay {
     position: fixed;
     inset: 0;
-<<<<<<< HEAD
-    background: rgba(0, 0, 0, 0.6);
-=======
     background: rgba(45, 52, 54, 0.85);
     backdrop-filter: blur(8px);
->>>>>>> recovery-branch
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 999;
-<<<<<<< HEAD
-=======
     animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
->>>>>>> recovery-branch
 }
 
 /* ===== Alarm Modal ===== */
 .alarm-modal {
-<<<<<<< HEAD
-    background: white;
-    padding: 30px;
-    border-radius: 12px;
-    width: 380px;
-    text-align: center;
-    animation: pop 0.3s ease;
-}
-
-.alarm-modal h1 {
-    margin-bottom: 10px;
-}
-
-.alarm-modal .time {
-    font-size: 32px;
-    font-weight: bold;
-}
-
-.alarm-modal .label {
-    margin: 10px 0;
-    color: #555;
-}
-
-.actions button {
-    margin: 8px;
-    padding: 10px 14px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-@keyframes pop {
-    from {
-        transform: scale(0.8);
-        opacity: 0;
-    }
-
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
-=======
     background: linear-gradient(135deg, #fff 0%, #fef6e4 100%);
     padding: 40px 32px;
     border-radius: 28px;
@@ -479,5 +412,4 @@
     .actions {
         flex-direction: column;
     }
->>>>>>> recovery-branch
 }
