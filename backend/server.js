@@ -31,6 +31,10 @@ app.use(cors({
 app.use(express.json());
 
 // ─── Health check ──────────────────────────────────────────
+app.get("/", (req, res) => {
+  res.send("Daily Planner Backend is running 🚀");
+});
+
 app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
 });
@@ -95,7 +99,7 @@ TODAY'S TASK SNAPSHOT:
     }
 
     return `
-You are a caring, proactive AI buddy helping with time management. Your goal: MAKE SURE ALL TASKS GET COMPLETED.
+You are a caring, proactive AI buddy helping with time management.
 
 LANGUAGE: ${lang.rule}
 Style: ${lang.tone}
@@ -103,57 +107,29 @@ Style: ${lang.tone}
 ${taskSnapshot}
 
 CURRENT TIME: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (24-hour)
-CURRENT DATE: ${new Date().toLocaleDateString()}
 CURRENT DATE: ${currentYear}-${currentMonth}-${currentDay}
 TOMORROW: ${tomorrow}
 
 ═══════════════════════════════════════════════════════════════
-ALARM TOOL - CRITICAL RULES:
+ALARM - ALWAYS USE THIS:
 ═══════════════════════════════════════════════════════════════
 
-Use **set_alarm** for ALL alarm requests:
-✅ "alarm set kar do 3 PM"
-✅ "11 PM ka alarm"
-✅ "set alarm 3:00 PM Mujhe bahar jana hai"
-✅ "wake me at 7"
+When user says "alarm":
+✅ ALWAYS call set_alarm tool
+✅ Convert AM/PM to 24-hour: 3 PM = 15:00, 11 PM = 23:00
 
-TIME CONVERSION - ALWAYS 24-HOUR FORMAT:
-"3 PM" → "15:00"
-"3:00 PM" → "15:00"
-"11 PM" → "23:00"
-"11:00 PM" → "23:00"
-"7 AM" → "07:00"
-"7:00 AM" → "07:00"
-
-CRITICAL: Always call set_alarm when user mentions "alarm"!
-
-EXAMPLES:
-
-User: "alarm set kar do 3:00 P.M Ka Mujhe bahar jana hai"
-→ set_alarm(time="15:00", date="", label="bahar jana hai", repeat="once")
-
-User: "alarm add kar do 11:00 PM Ka"
-→ set_alarm(time="23:00", date="", label="Alarm", repeat="once")
-
-User: "23 feb meeting alarm laga do 9 AM"
-→ set_alarm(time="09:00", date="${currentYear}-02-23", label="meeting", repeat="once")
+Examples:
+"alarm 3 PM" → set_alarm(time="15:00", date="", label="Alarm")
+"11 PM alarm" → set_alarm(time="23:00", date="", label="Alarm")
 
 ═══════════════════════════════════════════════════════════════
-TOOL USAGE RULES:
+NOTES - EXACT WORDS:
 ═══════════════════════════════════════════════════════════════
 
-Use **add_task** when:
-✅ User says: "add task", "task banao", "X karna hai Y time pe"
-
-Use **complete_task** when:
-✅ "ho gaya", "done", "complete ho gaya"
-
-Use **delete_task** when:
-✅ "delete karo", "remove karo"
-
-Use **update_notes** when in notes mode:
-✅ User dictates thoughts
-✅ ALWAYS call the tool - NEVER just respond without calling it
+When in notes mode:
+1. ALWAYS call update_notes - never skip it
+2. Use user's EXACT words (don't summarize)
+3. Remove only: "notes mein add kar do", "daily notes mein add kar do"
 
 Keep replies SHORT (1-2 sentences).
 `.trim();
@@ -175,22 +151,7 @@ app.post("/api/advanced-chat", async (req, res) => {
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
         if (isVoice && voiceMode === 'notes') {
-            systemPrompt += `\n\n═══════════════════════════════════════════════════════════
-VOICE NOTES MODE - MANDATORY TOOL USAGE:
-═══════════════════════════════════════════════════════════
-
-⚠️ CRITICAL: You MUST ALWAYS call the update_notes tool! NEVER just respond without calling it!
-
-WRONG: User says something → You respond "Notes mein add ho gaya!" (NO TOOL CALL)
-CORRECT: User says something → Call update_notes() → Then respond "Notes mein add ho gaya!"
-
-CONTENT RULES:
-1. Call update_notes with user's EXACT words
-2. DO NOT summarize or shorten
-3. Include EVERYTHING user said
-
-Remove only instruction phrases like "notes mein add kar do"
-═══════════════════════════════════════════════════════════`;
+            systemPrompt += `\n\nNOTES MODE: Call update_notes with user's EXACT words. Don't summarize!`;
         }
 
         const recentMessages = messages.slice(-20);
@@ -200,12 +161,12 @@ Remove only instruction phrases like "notes mein add kar do"
                 type: "function",
                 function: {
                     name: "set_reminder",
-                    description: "Set a timed reminder notification",
+                    description: "Set reminder notification",
                     parameters: {
                         type: "object",
                         properties: {
-                            time: { type: "string", description: "Time in HH:MM 24-hour format" },
-                            message: { type: "string", description: "What to remind about" }
+                            time: { type: "string" },
+                            message: { type: "string" }
                         },
                         required: ["time", "message"]
                     }
@@ -215,27 +176,14 @@ Remove only instruction phrases like "notes mein add kar do"
                 type: "function",
                 function: {
                     name: "set_alarm",
-                    description: "Set an alarm with sound and vibration. ALWAYS use this when user says 'alarm'.",
+                    description: "Set alarm. ALWAYS use when user says 'alarm'.",
                     parameters: {
                         type: "object",
                         properties: {
-                            time: {
-                                type: "string",
-                                description: "Time in HH:MM 24-hour format. CRITICAL: Convert AM/PM to 24-hour. 3 PM = 15:00, 11 PM = 23:00"
-                            },
-                            date: {
-                                type: "string",
-                                description: "Date in YYYY-MM-DD format. Use empty string if no date mentioned."
-                            },
-                            label: {
-                                type: "string",
-                                description: "What the alarm is for. Extract from user's message."
-                            },
-                            repeat: {
-                                type: "string",
-                                enum: ["once", "daily", "custom"],
-                                description: "Repeat pattern"
-                            }
+                            time: { type: "string", description: "HH:MM 24-hour format" },
+                            date: { type: "string", description: "YYYY-MM-DD or empty string" },
+                            label: { type: "string" },
+                            repeat: { type: "string", enum: ["once", "daily", "custom"] }
                         },
                         required: ["time"]
                     }
@@ -245,18 +193,12 @@ Remove only instruction phrases like "notes mein add kar do"
                 type: "function",
                 function: {
                     name: "update_notes",
-                    description: "Update daily notes. Pass user's EXACT words, no summarization.",
+                    description: "Update notes with EXACT words",
                     parameters: {
                         type: "object",
                         properties: {
-                            content: { 
-                                type: "string",
-                                description: "User's EXACT spoken words"
-                            },
-                            mode: {
-                                type: "string",
-                                enum: ["append", "replace"]
-                            }
+                            content: { type: "string" },
+                            mode: { type: "string", enum: ["append", "replace"] }
                         },
                         required: ["content"]
                     }
@@ -323,14 +265,14 @@ Remove only instruction phrases like "notes mein add kar do"
 
         const response = completion.choices[0];
 
-        // Collect all actions
+        // Collect actions
         const actions = [];
         if (response.message.tool_calls) {
             for (const toolCall of response.message.tool_calls) {
                 try {
                     const params = JSON.parse(toolCall.function.arguments);
 
-                    // Clean up null values for set_alarm
+                    // Clean up set_alarm params
                     if (toolCall.function.name === "set_alarm") {
                         if (params.date === null || params.date === undefined) {
                             params.date = "";
@@ -340,30 +282,6 @@ Remove only instruction phrases like "notes mein add kar do"
                         }
                         if (!params.repeat) {
                             params.repeat = "once";
-                        }
-                    }
-
-                    // Validate update_notes content
-                    if (toolCall.function.name === "update_notes" && voiceMode === 'notes') {
-                        const userMessage = recentMessages[recentMessages.length - 1]?.content || "";
-                        const noteContent = params.content || "";
-                        
-                        const cleanedUserMsg = userMessage
-                            .replace(/bhai add kar de/gi, '')
-                            .replace(/notes? mein add kar do/gi, '')
-                            .replace(/meri daily notes? mein add kar do/gi, '')
-                            .replace(/daily notes? mein add kar do/gi, '')
-                            .replace(/usko bhi add kar do/gi, '')
-                            .trim();
-                        
-                        const userWordCount = cleanedUserMsg.split(/\s+/).filter(w => w.length > 0).length;
-                        const noteWordCount = noteContent.split(/\s+/).filter(w => w.length > 0).length;
-                        
-                        console.log(`📊 Word count: User=${userWordCount}, Note=${noteWordCount}`);
-                        
-                        if (noteWordCount < userWordCount * 0.7 && userWordCount > 5) {
-                            console.warn(`⚠️ Summarization detected! Using original.`);
-                            params.content = cleanedUserMsg;
                         }
                     }
 
@@ -389,8 +307,8 @@ Remove only instruction phrases like "notes mein add kar do"
 
     } catch (error) {
         console.error("Advanced chat error:", error);
-        console.error("Error details:", error.message);
-        res.status(500).json({ error: "Something went wrong", details: error.message });
+        console.error("Error stack:", error.stack);
+        res.status(500).json({ error: "Server error", details: error.message });
     }
 });
 
@@ -400,9 +318,9 @@ app.post("/api/task-reminder", async (req, res) => {
         const { task, language } = req.body;
 
         const messages = {
-            hinglish: `⏰ "${task.title}" 10 min mein start hone wala hai (${task.startTime} pe). Ready ho jao!`,
-            hindi: `⏰ "${task.title}" 10 मिनट में शुरू होगा (${task.startTime} पर)। तैयार हो जाओ!`,
-            english: `⏰ "${task.title}" starts in 10 minutes (at ${task.startTime}). Get ready!`
+            hinglish: `⏰ "${task.title}" 10 min mein start hone wala hai. Ready ho jao!`,
+            hindi: `⏰ "${task.title}" 10 मिनट में शुरू होगा। तैयार हो जाओ!`,
+            english: `⏰ "${task.title}" starts in 10 minutes. Get ready!`
         };
 
         res.json({ message: messages[language] || messages.hinglish });
@@ -418,9 +336,9 @@ app.post("/api/task-checkin", async (req, res) => {
         const { task, language } = req.body;
 
         const messages = {
-            hinglish: `🤔 "${task.title}" ho gaya kya? Agar nahi hua to koi baat nahi - main help kar sakta hoon!`,
-            hindi: `🤔 "${task.title}" हो गया क्या? अगर नहीं हुआ तो कोई बात नहीं - मैं मदद कर सकता हूं!`,
-            english: `🤔 Did you finish "${task.title}"? If not, no worries - I can help!`
+            hinglish: `🤔 "${task.title}" ho gaya kya?`,
+            hindi: `🤔 "${task.title}" हो गया क्या?`,
+            english: `🤔 Did you finish "${task.title}"?`
         };
 
         res.json({ message: messages[language] || messages.hinglish });
@@ -437,14 +355,14 @@ app.post("/api/proactive-checkin", async (req, res) => {
 
         const prompts = {
             morning: {
-                hinglish: `Morning! Aaj ${taskContext.total} tasks hain. Kaunsa pehle karoge?`,
-                hindi: `सुप्रभात! आज ${taskContext.total} tasks हैं। कौनसा पहले करोगे?`,
-                english: `Good morning! You have ${taskContext.total} tasks today. Which one first?`
+                hinglish: `Morning! Aaj ${taskContext.total} tasks hain.`,
+                hindi: `सुप्रभात! आज ${taskContext.total} tasks हैं।`,
+                english: `Good morning! You have ${taskContext.total} tasks today.`
             },
             evening: {
-                hinglish: `Shaam ho gayi! ${taskContext.completed}/${taskContext.total} done. Bache hue tasks complete karo?`,
-                hindi: `शाम हो गयी! ${taskContext.completed}/${taskContext.total} पूरे हुए। बाकी complete करें?`,
-                english: `Evening! ${taskContext.completed}/${taskContext.total} done. Ready to finish the rest?`
+                hinglish: `Shaam ho gayi! ${taskContext.completed}/${taskContext.total} done.`,
+                hindi: `शाम हो गयी! ${taskContext.completed}/${taskContext.total} पूरे हुए।`,
+                english: `Evening! ${taskContext.completed}/${taskContext.total} done.`
             }
         };
 
@@ -461,7 +379,4 @@ app.post("/api/proactive-checkin", async (req, res) => {
 // ─── START ──────────────────────────────────────────────────
 app.listen(PORT, () => {
     console.log(`🚀 Buddy server running on port ${PORT}`);
-});
-app.get("/", (req, res) => {
-  res.send("Daily Planner Backend is running 🚀");
 });
