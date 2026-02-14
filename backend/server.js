@@ -275,57 +275,28 @@ app.post("/api/advanced-chat", async (req, res) => {
 
         if (isVoice && voiceMode === 'notes') {
             systemPrompt += `\n\n═══════════════════════════════════════════════════════════
-VOICE NOTES MODE - MANDATORY TOOL USAGE:
-═══════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+NOTES MODE - CRITICAL RULES:
+═══════════════════════════════════════════════════════════════
 
-⚠️ CRITICAL: You MUST ALWAYS call the update_notes tool! NEVER just respond without calling it!
+When user is dictating in NOTES mode:
+1. ✅ ALWAYS call update_notes tool - NEVER skip it
+2. ✅ Use user's EXACT words (don't summarize or rewrite)
+3. ✅ Remove ONLY: "notes mein add kar do", "daily notes mein", "add karo"
+4. ✅ Keep everything else exactly as spoken
+5. ✅ NEVER show the function call in your response
+6. ✅ After calling tool, reply ONLY: "✅ Notes mein add ho gaya!" or "Got it!"
 
-WRONG BEHAVIOR (DO NOT DO THIS):
-User: "notes mein add kar do - xyz"
-You: "📝 Notes mein add ho gaya!" ← NO! Missing tool call!
+WRONG ❌:
+User: "aaj ka din bahut accha tha notes mein add kar do"
+You: <function:update_notes...> [Shows function call]
 
-CORRECT BEHAVIOR (ALWAYS DO THIS):
-User: "notes mein add kar do - xyz"
-You: [Call update_notes tool with content="xyz"]
-Then respond: "📝 Notes mein add ho gaya!"
+CORRECT ✅:
+User: "aaj ka din bahut accha tha notes mein add kar do"
+You: [Calls update_notes with content="aaj ka din bahut accha tha"]
+Response: "✅ Notes mein add ho gaya!"
 
-═══════════════════════════════════════════════════════════
-
-CONTENT RULES:
-1. Call update_notes with user's EXACT words
-2. DO NOT summarize, shorten, or change ANYTHING
-3. DO NOT translate - keep it in the SAME language user spoke
-4. Include EVERYTHING user said, even if it's 100+ words long
-5. After calling the tool, respond: "📝 Notes mein add ho gaya!"
-
-REMOVE ONLY THESE INSTRUCTION PHRASES:
-- "bhai add kar de"
-- "notes mein add kar do" 
-- "meri daily notes mein add kar do"
-- "daily notes mein add kar do"
-- "usko bhi add kar do"
-- "add this to notes"
-
-Keep EVERYTHING ELSE word-for-word!
-
-═══════════════════════════════════════════════════════════
-EXAMPLES:
-═══════════════════════════════════════════════════════════
-
-User: "Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai"
-❌ WRONG: Just respond "Notes mein add ho gaya!"
-✅ CORRECT: Call update_notes("Bahar Gaye FIR khana khaya FIR Kuchh kam karo FIR so gai")
-
-User: "Main Bahar Gai college Gai Thi college se pet Ghar I Ghar aane ke bad Maine Kuchh khana vana khaya FIR Meri class Thi use attend kara usmein projects ka notes vagaira Banaya"
-❌ WRONG: Summarize to "College gai, khana khaya, class attend kari"
-✅ CORRECT: Call update_notes with FULL TEXT above (all 40+ words)
-
-User: "aur FIR main Apna Kam karne ke bad Kuchh Soch rahi thi sochne ke bad FIR Maine tas complete kara gift Pushkar Mein so gai"
-✅ CORRECT: Call update_notes with exact text
-
-═══════════════════════════════════════════════════════════
-
-REMEMBER: ALWAYS call the tool! Don't just say "added" without actually adding!
+Keep replies SHORT (1 sentence max).
 ═══════════════════════════════════════════════════════════`;
         } else if (isVoice && voiceMode === 'tasks') {
             systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
