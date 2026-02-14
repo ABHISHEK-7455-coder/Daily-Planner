@@ -345,51 +345,68 @@ export default function Today() {
     if (load < 10) return "busy";
     return "overloaded";
   };
-
-  // 🎯 IMPROVED: Handle notes update from buddy with better error handling
-  const handleUpdateNotes = (content, mode = 'append') => {
-    console.log("📝 Today.jsx: handleUpdateNotes called");
-    console.log("📝 Content:", content);
-    console.log("📝 Mode:", mode);
-    console.log("📝 dailyNotesRef.current exists?", !!dailyNotesRef.current);
-    
-    if (dailyNotesRef.current && dailyNotesRef.current.updateFromVoice) {
-      console.log("✅ Calling updateFromVoice on ref");
-      try {
-        dailyNotesRef.current.updateFromVoice(content, mode);
-        console.log("✅ Notes updated successfully via ref");
-      } catch (error) {
-        console.error("❌ Error updating notes via ref:", error);
-      }
-    } else {
-      console.error("❌ DailyNotes ref or updateFromVoice method not available");
-      console.log("📋 dailyNotesRef:", dailyNotesRef);
-      console.log("📋 dailyNotesRef.current:", dailyNotesRef.current);
-      
-      // 🎯 FALLBACK: Try to update localStorage directly
-      console.log("🔄 Attempting direct localStorage update as fallback");
-      try {
-        const raw = localStorage.getItem("daily-notes");
-        const allNotes = raw ? JSON.parse(raw) : {};
-        
-        if (mode === 'append') {
-          const existingNote = allNotes[dayKey] || "";
-          const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const newNote = existingNote
-            ? `${existingNote}\n\n[${timestamp}] ${content}`
-            : `[${timestamp}] ${content}`;
-          allNotes[dayKey] = newNote;
-        } else {
-          allNotes[dayKey] = content;
-        }
-        
-        localStorage.setItem("daily-notes", JSON.stringify(allNotes));
-        console.log("✅ Notes updated via fallback method");
-      } catch (error) {
-        console.error("❌ Fallback localStorage update failed:", error);
-      }
+// 🎯 BULLETPROOF: Handle notes update from buddy
+const handleUpdateNotes = (content, mode = 'append') => {
+  console.log("═════════════════════════════════════════");
+  console.log("📝 Today.jsx: handleUpdateNotes called");
+  console.log("📝 Content:", content);
+  console.log("📝 Content length:", content.length);
+  console.log("📝 Mode:", mode);
+  console.log("📝 Current dayKey:", dayKey);
+  console.log("📝 dailyNotesRef:", dailyNotesRef);
+  console.log("📝 dailyNotesRef.current:", dailyNotesRef.current);
+  console.log("📝 dailyNotesRef.current.updateFromVoice:", dailyNotesRef.current?.updateFromVoice);
+  console.log("═════════════════════════════════════════");
+  
+  // METHOD 1: Use ref (preferred)
+  if (dailyNotesRef.current && dailyNotesRef.current.updateFromVoice) {
+    console.log("✅ METHOD 1: Calling updateFromVoice on ref");
+    try {
+      dailyNotesRef.current.updateFromVoice(content, mode);
+      console.log("✅ Notes updated successfully via ref");
+      return; // Success!
+    } catch (error) {
+      console.error("❌ Error updating notes via ref:", error);
+      console.log("⚠️ Falling back to METHOD 2");
     }
-  };
+  } else {
+    console.error("❌ Ref not available, using METHOD 2");
+  }
+  
+  // METHOD 2: Direct localStorage update + event dispatch (fallback)
+  console.log("🔄 METHOD 2: Direct localStorage update");
+  try {
+    const raw = localStorage.getItem("daily-notes");
+    const allNotes = raw ? JSON.parse(raw) : {};
+    
+    if (mode === 'append') {
+      const existingNote = allNotes[dayKey] || "";
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newNote = existingNote
+        ? `${existingNote}\n\n[${timestamp}] ${content}`
+        : `[${timestamp}] ${content}`;
+      allNotes[dayKey] = newNote;
+      console.log("📝 New note length:", newNote.length);
+    } else {
+      allNotes[dayKey] = content;
+    }
+    
+    localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+    console.log("✅ Saved to localStorage");
+    
+    // Trigger custom event to force DailyNotes to reload
+    window.dispatchEvent(new Event('notes-updated'));
+    console.log("📢 Dispatched notes-updated event");
+    
+    // Also update trigger key for storage event
+    localStorage.setItem('daily-notes-update-trigger', Date.now().toString());
+    console.log("🔔 Updated trigger key");
+    
+  } catch (error) {
+    console.error("❌ METHOD 2 failed:", error);
+    console.error("⚠️ NOTHING WORKED - Please refresh the page");
+  }
+};
 
   // 🎯 FIXED: Handle alarm from buddy
   const handleAddAlarm = (alarmParams) => {
