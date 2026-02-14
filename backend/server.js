@@ -445,12 +445,18 @@ Your response:
         
         // 🎯 DEBUG: Log what we got back
         console.log("═══════════════════════════════════════");
-        console.log("📥 LLM Response:");
+        console.log("📥 RAW LLM RESPONSE:");
         console.log("message.content:", response.message.content);
-        console.log("tool_calls:", response.message.tool_calls);
+        console.log("tool_calls:", response.message.tool_calls ? "YES (" + response.message.tool_calls.length + " calls)" : "NO");
+        if (response.message.tool_calls) {
+            console.log("tool_calls details:", JSON.stringify(response.message.tool_calls.map(tc => ({
+                name: tc.function.name,
+                args: tc.function.arguments
+            })), null, 2));
+        }
         console.log("═══════════════════════════════════════");
 
-        // Collect all actions
+        // 🎯 CRITICAL: Collect all actions into proper format
         const actions = [];
         if (response.message.tool_calls) {
             for (const toolCall of response.message.tool_calls) {
@@ -521,11 +527,24 @@ Your response:
             reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
         }
 
-        res.json({
+        // 🎯 CRITICAL: Build response in CORRECT format for frontend
+        const finalResponse = {
             type: actions.length > 0 ? "actions" : "message",
             message: reply,
             actions: actions
-        });
+        };
+
+        console.log("═══════════════════════════════════════");
+        console.log("📤 FINAL RESPONSE TO FRONTEND:");
+        console.log("type:", finalResponse.type);
+        console.log("message:", finalResponse.message ? `"${finalResponse.message}"` : '""');
+        console.log("actions count:", finalResponse.actions.length);
+        if (finalResponse.actions.length > 0) {
+            console.log("actions:", JSON.stringify(finalResponse.actions, null, 2));
+        }
+        console.log("═══════════════════════════════════════");
+
+        res.json(finalResponse);
 
     } catch (error) {
         console.error("Advanced chat error:", error);
