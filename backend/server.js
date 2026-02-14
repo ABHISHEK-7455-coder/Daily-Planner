@@ -150,26 +150,6 @@ DATE CONVERSION:
 "today" → "${currentYear}-${currentMonth}-${currentDay}"
 NO DATE MENTIONED → "" (empty string)
 
-EXAMPLES:
-
-User: "set alarm for 5 AM"
-→ set_alarm(time="05:00", date="", label="Alarm", repeat="once")
-
-User: "23 feb meeting alarm laga do"
-→ set_alarm(time="09:00", date="${currentYear}-02-23", label="meeting", repeat="once")
-
-User: "18 february friend birthday 8 baje"
-→ set_alarm(time="08:00", date="${currentYear}-02-18", label="friend birthday", repeat="once")
-
-User: "wake me up at 7:30 tomorrow"
-→ set_alarm(time="07:30", date="${tomorrow}", label="wake up", repeat="once")
-
-User: "daily 6 am alarm"
-→ set_alarm(time="06:00", date="", label="daily alarm", repeat="daily")
-
-User: "9:35 pe alarm set karo"
-→ set_alarm(time="09:35", date="", label="Alarm", repeat="once")
-
 CRITICAL: NEVER send null! Always use empty string "" if no date.
 
 Keep replies SHORT (1-2 sentences).
@@ -198,6 +178,7 @@ Use **set_reminder** when:
 ✅ User says "remind me in 5 min", "5 min mai yaad dilana", "reminder set karo"
 ✅ User just wants a notification, NOT a task in their list
 ✅ Example: "5 min mai remind karna" → set_reminder (NOT add_task!)
+
 Use **add_task** when:
 ✅ User says: "add task", "task banao", "X karna hai Y time pe"
 ✅ ALWAYS include startTime if user mentions ANY time
@@ -213,7 +194,9 @@ Use **delete_task** when:
 
 Use **update_notes** when in notes mode:
 ✅ User dictates thoughts
-✅ Add timestamp and content
+✅ ALWAYS call this tool - NEVER return function text in your message
+✅ Extract their exact words (remove only "notes mein add kar do" type phrases)
+✅ Return EMPTY message content - tool_calls array handles the function call
 
 ═══════════════════════════════════════════════════════════════
 TASK COMPLETION MOTIVATION:
@@ -246,14 +229,6 @@ User: "writing done ho gaya"
 You: [Call complete_task("writing")]
 Response: "🎉 Awesome! Writing complete! Agli task ready ho?"
 
-User: "documentation ka task nahi ho raha"
-You: "Koi baat nahi! Yeh karo:
-1. Pehle main points list karo (2 min)
-2. Har point ko 1-2 sentences mein expand karo (5 min)
-3. Review karo (1 min)
-
-Start small - pehla step kar lo!"
-
 REMEMBER:
 - Extract time EVERY time user mentions it
 - Be motivating and proactive
@@ -277,11 +252,56 @@ app.post("/api/advanced-chat", async (req, res) => {
         const selectedLanguage = language || "hinglish";
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
-   if (isVoice && voiceMode === 'notes') {
-      systemPrompt += `\n\nVOICE NOTES MODE: User is dictating their daily notes. Just acknowledge briefly and confirm you've noted it. Don't over-explain. Be concise like: "Got it!" or "Noted!"`;
-    } else if (isVoice && voiceMode === 'tasks') {
-      systemPrompt += `\n\nVOICE TASKS MODE: User is speaking tasks. Parse what they say and add tasks automatically. Be brief in confirmation like: "Added!" or "Task created!"`;
+        // 🎯 CRITICAL FIX: Proper notes mode instructions
+        if (isVoice && voiceMode === 'notes') {
+            systemPrompt += `\n\n═══════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+NOTES MODE - ULTRA CRITICAL INSTRUCTIONS:
+═══════════════════════════════════════════════════════════════
+
+When user dictates in NOTES mode, you MUST:
+
+1. Call update_notes tool with their EXACT words
+2. Remove ONLY these instruction phrases:
+   - "notes mein add kar do"
+   - "meri daily notes mein"
+   - "dairy notes mein update kar do"
+   - "add kar do"
+   - "bhai add kar de"
+3. Keep ALL other content exactly as spoken
+4. Return EMPTY content in your message (content: "" or content: null)
+
+CRITICAL: The tool_calls array is separate from message.content!
+- tool_calls: [{ function: "update_notes", arguments: {...} }]
+- content: "" ← MUST BE EMPTY!
+
+WRONG ❌ (Never do this):
+content: "<function:update_notes>..." 
+content: "I'll add that to notes"
+content: "✅ Added to notes"
+
+RIGHT ✅ (Always do this):
+tool_calls: [{ function: "update_notes", arguments: {"content": "user's exact words"} }]
+content: "" ← Empty!
+
+The frontend will show "✅ Notes mein add ho gaya!" automatically.
+
+Example:
+User: "Meri Dairy notes Mein update kar do Ki Main Bahar Gai thi"
+Your response:
+{
+  "content": "",
+  "tool_calls": [{
+    "function": {
+      "name": "update_notes",
+      "arguments": "{\\"content\\":\\"Ki Main Bahar Gai thi\\",\\"mode\\":\\"append\\"}"
     }
+  }]
+}
+═══════════════════════════════════════════════════════════`;
+        } else if (isVoice && voiceMode === 'tasks') {
+            systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
+        }
 
         const recentMessages = messages.slice(-20);
 
@@ -292,20 +312,20 @@ app.post("/api/advanced-chat", async (req, res) => {
                     name: "set_reminder",
                     description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
                     parameters: {
-                    type: "object",
-                    properties: {
-                        time: { 
-                        type: "string", 
-                        description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
+                        type: "object",
+                        properties: {
+                            time: { 
+                                type: "string", 
+                                description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
+                            },
+                            message: { 
+                                type: "string", 
+                                description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
+                            }
                         },
-                        message: { 
-                        type: "string", 
-                        description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
-                        }
-                    },
-                    required: ["time", "message"]
+                        required: ["time", "message"]
                     }
-            }
+                }
             },
             {
                 type: "function",
@@ -341,13 +361,13 @@ app.post("/api/advanced-chat", async (req, res) => {
                 type: "function",
                 function: {
                     name: "update_notes",
-                    description: "Update daily notes. CRITICAL: You MUST pass the user's EXACT words in the content parameter. DO NOT summarize, shorten, translate, or change ANY words. If user says 50 words, content parameter MUST have all 50 words. If you summarize or shorten, the notes will be WRONG and INCOMPLETE.",
+                    description: "Update daily notes in notes mode. CRITICAL: Pass user's EXACT words. DO NOT include function syntax in message.content - that goes in tool_calls array only.",
                     parameters: {
                         type: "object",
                         properties: {
                             content: { 
                                 type: "string",
-                                description: "User's EXACT spoken words with NO changes, NO summarization, NO translation. Must be word-for-word identical to what user said (excluding only instruction phrases like 'add kar do'). If user spoke 100 words, this parameter MUST contain all 100 words in the exact same language and order."
+                                description: "User's EXACT spoken words with NO changes, NO summarization. Remove only instruction phrases like 'add kar do'. If user spoke 100 words, this MUST contain all 100 words."
                             },
                             mode: {
                                 type: "string",
@@ -422,6 +442,13 @@ app.post("/api/advanced-chat", async (req, res) => {
         });
 
         const response = completion.choices[0];
+        
+        // 🎯 DEBUG: Log what we got back
+        console.log("═══════════════════════════════════════");
+        console.log("📥 LLM Response:");
+        console.log("message.content:", response.message.content);
+        console.log("tool_calls:", response.message.tool_calls);
+        console.log("═══════════════════════════════════════");
 
         // Collect all actions
         const actions = [];
@@ -430,7 +457,7 @@ app.post("/api/advanced-chat", async (req, res) => {
                 try {
                     const params = JSON.parse(toolCall.function.arguments);
 
-                    // 🎯 Clean up null values for set_alarm
+                    // Clean up null values for set_alarm
                     if (toolCall.function.name === "set_alarm") {
                         if (params.date === null || params.date === undefined) {
                             params.date = "";
@@ -443,7 +470,7 @@ app.post("/api/advanced-chat", async (req, res) => {
                         }
                     }
 
-                    // 🎯 Validate update_notes content isn't summarized
+                    // Validate update_notes content isn't summarized
                     if (toolCall.function.name === "update_notes" && voiceMode === 'notes') {
                         const userMessage = recentMessages[recentMessages.length - 1]?.content || "";
                         const noteContent = params.content || "";
@@ -452,16 +479,20 @@ app.post("/api/advanced-chat", async (req, res) => {
                         const cleanedUserMsg = userMessage
                             .replace(/bhai add kar de/gi, '')
                             .replace(/notes? mein add kar do/gi, '')
-                            .replace(/meri daily notes? mein add kar do/gi, '')
+                            .replace(/meri d[ai][ir][ry]y? notes? mein/gi, '')
+                            .replace(/dairy notes? mein update kar do/gi, '')
                             .replace(/daily notes? mein add kar do/gi, '')
                             .replace(/usko bhi add kar do/gi, '')
                             .replace(/add (this|that|it) to notes?/gi, '')
+                            .replace(/ki main/gi, 'Ki Main')
                             .trim();
                         
                         const userWordCount = cleanedUserMsg.split(/\s+/).length;
                         const noteWordCount = noteContent.split(/\s+/).length;
                         
                         console.log(`📊 Word count check: User=${userWordCount}, Note=${noteWordCount}`);
+                        console.log(`📝 Cleaned user message: "${cleanedUserMsg}"`);
+                        console.log(`📝 Note content: "${noteContent}"`);
                         
                         if (noteWordCount < userWordCount * 0.7) {
                             console.warn(`⚠️ POSSIBLE SUMMARIZATION DETECTED! Using user's original words instead.`);
@@ -485,6 +516,7 @@ app.post("/api/advanced-chat", async (req, res) => {
         let reply;
         if (voiceMode === 'notes' && actions.length > 0) {
             reply = ""; // Empty reply - frontend will show confirmation
+            console.log("✅ Notes mode: Returning empty message, frontend will confirm");
         } else {
             reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
         }
@@ -565,7 +597,7 @@ app.post("/api/random-motivation", async (req, res) => {
         { role: "system", content: `${prompts.hinglish}\n\nBe HIGHLY creative. Think like a real supportive friend who knows when to surprise you with the right words.` },
         { role: "user", content: "Generate unique motivation message." }
       ],
-      temperature: 1.0, // Maximum creativity
+      temperature: 1.0,
       max_tokens: 150
     });
 
@@ -584,8 +616,6 @@ app.post("/api/proactive-checkin", async (req, res) => {
 
     const prompts = {
       morning: {
-        hindi: `तुम एक दोस्त हो जो सुबह प्यार से पूछता है। User के ${taskContext.total} tasks हैं, ${taskContext.pending} अभी बाकी हैं। एक छोटा, warm message लिखो (max 2 sentences) जो user को motivate करे कि आज का दिन शुरू करें। Different style में लिखो हर बार - कभी enthusiastic, कभी gentle।`,
-        english: `You're a caring friend checking in on a morning. User has ${taskContext.total} tasks, ${taskContext.pending} still pending. Write a SHORT, warm morning message (max 2 sentences) that motivates them to start their day. Vary your style - sometimes enthusiastic, sometimes gentle.`,
         hinglish: `Tum ek buddy ho jo morning mein check kar raha hai. User ke ${taskContext.total} tasks hain, ${taskContext.pending} pending hain. Ek short, caring message likh (max 2 sentences) jo unhe motivate kare. Har baar different style - kabhi energetic, kabhi soft.`
       },
       midday: {
@@ -603,7 +633,7 @@ app.post("/api/proactive-checkin", async (req, res) => {
     };
 
     const selectedLang = language || "hinglish";
-    const prompt = prompts[type]?.[selectedLang] || prompts[type]?.hinglish || prompts.morning.hinglish;
+    const prompt = prompts[type]?.hinglish || prompts.morning.hinglish;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -611,7 +641,7 @@ app.post("/api/proactive-checkin", async (req, res) => {
         { role: "system", content: `${prompt}\n\nIMPORTANT: Write a UNIQUE message each time. Never repeat same patterns. Be genuinely caring like a real person.` },
         { role: "user", content: `Current time: ${new Date().toLocaleTimeString()}. Generate check-in message.` }
       ],
-      temperature: 0.9, // Higher for more variety
+      temperature: 0.9,
       max_tokens: 150
     });
 
@@ -620,7 +650,7 @@ app.post("/api/proactive-checkin", async (req, res) => {
     res.json({ 
       message,
       actions: type === 'morning' ? [
-        { label: language === 'hindi' ? 'चलो शुरू करें!' : 'Let\'s Start!', action: 'start' }
+        { label: 'Let\'s Start!', action: 'start' }
       ] : []
     });
 
