@@ -273,30 +273,45 @@ app.post("/api/advanced-chat", async (req, res) => {
         const selectedLanguage = language || "hinglish";
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
+        // 🎯 CRITICAL FIX: Better notes mode instructions
         if (isVoice && voiceMode === 'notes') {
             systemPrompt += `\n\n═══════════════════════════════════════════════════════════
 ═══════════════════════════════════════════════════════════════
-NOTES MODE - CRITICAL RULES:
+NOTES MODE - ULTRA CRITICAL RULES:
 ═══════════════════════════════════════════════════════════════
 
-When user is dictating in NOTES mode:
-1. ✅ ALWAYS call update_notes tool - NEVER skip it
-2. ✅ Use user's EXACT words (don't summarize or rewrite)
-3. ✅ Remove ONLY: "notes mein add kar do", "daily notes mein", "add karo"
-4. ✅ Keep everything else exactly as spoken
-5. ✅ NEVER show the function call in your response
-6. ✅ After calling tool, reply ONLY: "✅ Notes mein add ho gaya!" or "Got it!"
+IRON RULE: When user dictates notes, return ONLY tool_calls with EMPTY message content!
+
+CORRECT RESPONSE:
+{
+  "content": null,  // ← MUST BE NULL/EMPTY!
+  "tool_calls": [
+    {
+      "id": "call_abc123",
+      "type": "function",
+      "function": {
+        "name": "update_notes",
+        "arguments": "{\\"content\\":\\"user's exact words\\"}"
+      }
+    }
+  ]
+}
+
+WHAT TO DO:
+1. Extract user's content (remove "add kar do", "notes mein", etc)
+2. Call update_notes with EXACT words
+3. Return NULL or EMPTY content
 
 WRONG ❌:
-User: "aaj ka din bahut accha tha notes mein add kar do"
-You: <function:update_notes...> [Shows function call]
+content: "I'll add that to notes"
+content: "<function:update_notes>"
+content: "✅ Added to notes!"
 
-CORRECT ✅:
-User: "aaj ka din bahut accha tha notes mein add kar do"
-You: [Calls update_notes with content="aaj ka din bahut accha tha"]
-Response: "✅ Notes mein add ho gaya!"
+RIGHT ✅:
+content: null
+content: ""
 
-Keep replies SHORT (1 sentence max).
+After function executes, frontend will show confirmation. You don't need to.
 ═══════════════════════════════════════════════════════════`;
         } else if (isVoice && voiceMode === 'tasks') {
             systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
@@ -437,7 +452,7 @@ Keep replies SHORT (1 sentence max).
             tools: tools,
             tool_choice: "auto",
             temperature: 0.7,
-            max_tokens: 1000  // Increased for long notes
+            max_tokens: 1000
         });
 
         const response = completion.choices[0];
@@ -449,7 +464,7 @@ Keep replies SHORT (1 sentence max).
                 try {
                     const params = JSON.parse(toolCall.function.arguments);
 
-                    // 🎯 CRITICAL FIX: Clean up null values for set_alarm
+                    // 🎯 Clean up null values for set_alarm
                     if (toolCall.function.name === "set_alarm") {
                         if (params.date === null || params.date === undefined) {
                             params.date = "";
@@ -462,7 +477,7 @@ Keep replies SHORT (1 sentence max).
                         }
                     }
 
-                    // 🎯 NEW: Validate update_notes content isn't summarized
+                    // 🎯 Validate update_notes content isn't summarized
                     if (toolCall.function.name === "update_notes" && voiceMode === 'notes') {
                         const userMessage = recentMessages[recentMessages.length - 1]?.content || "";
                         const noteContent = params.content || "";
@@ -477,7 +492,6 @@ Keep replies SHORT (1 sentence max).
                             .replace(/add (this|that|it) to notes?/gi, '')
                             .trim();
                         
-                        // Check if content is significantly shorter (more than 30% shorter = likely summarized)
                         const userWordCount = cleanedUserMsg.split(/\s+/).length;
                         const noteWordCount = noteContent.split(/\s+/).length;
                         
@@ -485,7 +499,6 @@ Keep replies SHORT (1 sentence max).
                         
                         if (noteWordCount < userWordCount * 0.7) {
                             console.warn(`⚠️ POSSIBLE SUMMARIZATION DETECTED! Using user's original words instead.`);
-                            // Use the cleaned user message instead
                             params.content = cleanedUserMsg;
                         }
                     }
@@ -502,7 +515,13 @@ Keep replies SHORT (1 sentence max).
             }
         }
 
-        const reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
+        // 🎯 CRITICAL FIX: In notes mode with actions, send EMPTY reply
+        let reply;
+        if (voiceMode === 'notes' && actions.length > 0) {
+            reply = ""; // Empty reply - frontend will show confirmation
+        } else {
+            reply = response.message.content || (actions.length > 0 ? "Done!" : "Hmm...");
+        }
 
         res.json({
             type: actions.length > 0 ? "actions" : "message",

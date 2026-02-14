@@ -34,12 +34,10 @@ export default function AdvancedBuddy({
   const reminderIntervalRef = useRef(null);
   const checkInIntervalRef = useRef(null);
 
-  // 🎯 DEBUG: Log when onUpdateNotes changes
   useEffect(() => {
     console.log("🔍 ChatBuddy: onUpdateNotes callback:", onUpdateNotes ? "✅ Available" : "❌ Missing");
   }, [onUpdateNotes]);
 
-  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -48,7 +46,6 @@ export default function AdvancedBuddy({
     localStorage.setItem("buddy-language", language);
   }, [language]);
 
-  // Initialize Speech Recognition
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       console.warn("Speech recognition not supported");
@@ -119,14 +116,12 @@ export default function AdvancedBuddy({
     };
   }, [language]);
 
-  // Proactive check-ins
   useEffect(() => {
     if (!isOpen) {
       checkProactivePopup();
     }
   }, [tasks, currentDate]);
 
-  // Task monitoring
   useEffect(() => {
     if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
     if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
@@ -398,12 +393,15 @@ export default function AdvancedBuddy({
         }
       }
 
-      // Add assistant response
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: data.message,
-        timestamp: new Date()
-      }]);
+      // 🎯 CRITICAL FIX: Only add assistant response if there's actual content
+      // In notes mode, we get confirmation from handleAction, not from message
+      if (data.message && data.message.trim()) {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: data.message,
+          timestamp: new Date()
+        }]);
+      }
 
     } catch (error) {
       console.error("Chat error:", error);
@@ -603,6 +601,7 @@ export default function AdvancedBuddy({
       case "update_notes":
         console.log("📝 ChatBuddy: update_notes action triggered");
         console.log("📝 Content:", action.params.content);
+        console.log("📝 Content length:", action.params.content.length);
         console.log("📝 Mode:", action.params.mode || 'append');
         console.log("📝 onUpdateNotes callback exists?", !!onUpdateNotes);
         
@@ -611,10 +610,11 @@ export default function AdvancedBuddy({
             onUpdateNotes(action.params.content, action.params.mode || 'append');
             console.log("✅ onUpdateNotes called successfully");
             
+            // 🎯 FIX: Show confirmation message after notes update
             const notesMsg = {
-              hindi: `📝 नोट्स में add हो गया!`,
-              english: `📝 Added to your notes!`,
-              hinglish: `📝 Notes mein add ho gaya!`
+              hindi: `✅ नोट्स में add हो गया!`,
+              english: `✅ Added to notes!`,
+              hinglish: `✅ Notes mein add ho gaya!`
             };
             
             setMessages(prev => [...prev, {
@@ -779,7 +779,6 @@ export default function AdvancedBuddy({
 
   return (
     <>
-      {/* Proactive Popup */}
       {showProactivePopup && (
         <div className="proactive-popup-overlay">
           <div className="proactive-popup">
@@ -833,7 +832,6 @@ export default function AdvancedBuddy({
         </div>
       )}
 
-      {/* Floating Buddy Button */}
       <button
         className={`advanced-buddy-toggle ${isListening ? 'listening' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
@@ -854,7 +852,6 @@ export default function AdvancedBuddy({
         </div>
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
         <div className="advanced-buddy-window">
           <div className="buddy-header">
@@ -873,7 +870,6 @@ export default function AdvancedBuddy({
             <button className="close-btn" onClick={() => setIsOpen(false)}>×</button>
           </div>
 
-          {/* Language Selection */}
           <div className="voice-mode-tabs">
             <button
               className={language === "hindi" ? "active" : ""}
@@ -895,7 +891,6 @@ export default function AdvancedBuddy({
             </button>
           </div>
 
-          {/* Voice Mode Selection */}
           <div className="voice-mode-tabs" style={{ borderTop: '1px solid var(--buddy-border)' }}>
             <button
               className={voiceMode === "chat" ? "active" : ""}
@@ -917,7 +912,6 @@ export default function AdvancedBuddy({
             </button>
           </div>
 
-          {/* Messages */}
           <div className="buddy-messages">
             {messages.length === 0 && (
               <div className="message assistant">
@@ -959,7 +953,6 @@ export default function AdvancedBuddy({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="buddy-input-area">
             {voiceMode !== "chat" && (
               <div className="voice-mode-hint">
@@ -979,7 +972,6 @@ export default function AdvancedBuddy({
               </div>
             )}
 
-            {/* Input Mode Toggle */}
             <div className="input-mode-toggle">
               <button
                 className={inputMode === "text" ? "active" : ""}
@@ -998,7 +990,6 @@ export default function AdvancedBuddy({
               </button>
             </div>
 
-            {/* Text Input Form */}
             {inputMode === "text" && (
               <form className="text-input-form" onSubmit={handleTextSubmit}>
                 <input
@@ -1014,7 +1005,6 @@ export default function AdvancedBuddy({
               </form>
             )}
 
-            {/* Voice Input Control */}
             {inputMode === "voice" && (
               <div className="voice-input-control">
                 <button
@@ -1034,7 +1024,6 @@ export default function AdvancedBuddy({
                   )}
                 </button>
                 
-                {/* Manual text input while in voice mode */}
                 <form className="text-input-form" onSubmit={handleTextSubmit}>
                   <input
                     type="text"
