@@ -431,7 +431,7 @@ const handleUpdateNotes = (content, mode = 'append') => {
       console.error("❌ AlarmPlanner ref not available");
     }
   };
-
+ 
   return (
     <div className="today-container">
       <PushNotifications />

@@ -273,74 +273,36 @@ app.post("/api/advanced-chat", async (req, res) => {
         const selectedLanguage = language || "hinglish";
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
 
-        // 🎯 CRITICAL FIX: Better notes mode instructions
-        if (isVoice && voiceMode === 'notes') {
-            systemPrompt += `\n\n═══════════════════════════════════════════════════════════
-═══════════════════════════════════════════════════════════════
-NOTES MODE - ULTRA CRITICAL RULES:
-═══════════════════════════════════════════════════════════════
-
-IRON RULE: When user dictates notes, return ONLY tool_calls with EMPTY message content!
-
-CORRECT RESPONSE:
-{
-  "content": null,  // ← MUST BE NULL/EMPTY!
-  "tool_calls": [
-    {
-      "id": "call_abc123",
-      "type": "function",
-      "function": {
-        "name": "update_notes",
-        "arguments": "{\\"content\\":\\"user's exact words\\"}"
-      }
+   if (isVoice && voiceMode === 'notes') {
+      systemPrompt += `\n\nVOICE NOTES MODE: User is dictating their daily notes. Just acknowledge briefly and confirm you've noted it. Don't over-explain. Be concise like: "Got it!" or "Noted!"`;
+    } else if (isVoice && voiceMode === 'tasks') {
+      systemPrompt += `\n\nVOICE TASKS MODE: User is speaking tasks. Parse what they say and add tasks automatically. Be brief in confirmation like: "Added!" or "Task created!"`;
     }
-  ]
-}
-
-WHAT TO DO:
-1. Extract user's content (remove "add kar do", "notes mein", etc)
-2. Call update_notes with EXACT words
-3. Return NULL or EMPTY content
-
-WRONG ❌:
-content: "I'll add that to notes"
-content: "<function:update_notes>"
-content: "✅ Added to notes!"
-
-RIGHT ✅:
-content: null
-content: ""
-
-After function executes, frontend will show confirmation. You don't need to.
-═══════════════════════════════════════════════════════════`;
-        } else if (isVoice && voiceMode === 'tasks') {
-            systemPrompt += `\n\nVOICE TASKS MODE: Parse tasks from speech. Call add_task. Brief confirmations only.`;
-        }
 
         const recentMessages = messages.slice(-20);
 
         const tools = [
             {
-  type: "function",
-  function: {
-    name: "set_reminder",
-    description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
-    parameters: {
-      type: "object",
-      properties: {
-        time: { 
-          type: "string", 
-          description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
-        },
-        message: { 
-          type: "string", 
-          description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
-        }
-      },
-      required: ["time", "message"]
-    }
-  }
-},
+                type: "function",
+                function: {
+                    name: "set_reminder",
+                    description: "Set a timed reminder notification (NOT a task!). Use when user says 'remind me in X min', 'X min mai yaad dilana', 'reminder set karo'. This triggers a notification, not a task.",
+                    parameters: {
+                    type: "object",
+                    properties: {
+                        time: { 
+                        type: "string", 
+                        description: "Time in HH:MM format (24-hour). If user says '5 min mai' calculate: current time + 5 mins. If user says '2 min baad' calculate: current time + 2 mins."
+                        },
+                        message: { 
+                        type: "string", 
+                        description: "What to remind about. Extract from user's message. Example: 'remind me to call friend' → message='call friend'"
+                        }
+                    },
+                    required: ["time", "message"]
+                    }
+            }
+            },
             {
                 type: "function",
                 function: {
@@ -571,32 +533,97 @@ app.post("/api/task-checkin", async (req, res) => {
     }
 });
 
+// ─── POST /api/random-motivation ────────────────────────────
+app.post("/api/random-motivation", async (req, res) => {
+  try {
+    const { language, taskContext, currentDate } = req.body;
+
+    const motivationTypes = [
+      "achievement_celebration",
+      "progress_encouragement",
+      "work_life_balance_reminder",
+      "stress_relief_tip",
+      "productivity_hack",
+      "mindfulness_moment",
+      "gratitude_prompt",
+      "future_vision_reminder"
+    ];
+
+    const randomType = motivationTypes[Math.floor(Math.random() * motivationTypes.length)];
+
+    const prompts = {
+      hinglish: `Type: ${randomType}. User ke ${taskContext.completed}/${taskContext.total} tasks done hain. Ek surprise motivational message likh (2-3 sentences) jo user ko energize kare. Context: ${randomType}. Har baar COMPLETELY different message - kabhi inspiring quote style, kabhi practical tip, kabhi emotional support, kabhi funny observation. Be creative and unpredictable!`
+    };
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: `${prompts.hinglish}\n\nBe HIGHLY creative. Think like a real supportive friend who knows when to surprise you with the right words.` },
+        { role: "user", content: "Generate unique motivation message." }
+      ],
+      temperature: 1.0, // Maximum creativity
+      max_tokens: 150
+    });
+
+    res.json({ message: completion.choices[0].message.content });
+
+  } catch (error) {
+    console.error("Random motivation error:", error);
+    res.status(500).json({ error: "Failed to generate motivation" });
+  }
+});
+
 // ─── POST /api/proactive-checkin ────────────────────────────
 app.post("/api/proactive-checkin", async (req, res) => {
-    try {
-        const { type, language, taskContext } = req.body;
+  try {
+    const { type, language, taskContext, currentDate } = req.body;
 
-        const prompts = {
-            morning: {
-                hinglish: `Morning! Aaj ${taskContext.total} tasks hain. Kaunsa pehle karoge?`,
-                hindi: `सुप्रभात! आज ${taskContext.total} tasks हैं। कौनसा पहले करोगे?`,
-                english: `Good morning! You have ${taskContext.total} tasks today. Which one first?`
-            },
-            evening: {
-                hinglish: `Shaam ho gayi! ${taskContext.completed}/${taskContext.total} done. Bache hue tasks complete karo?`,
-                hindi: `शाम हो गयी! ${taskContext.completed}/${taskContext.total} पूरे हुए। बाकी complete करें?`,
-                english: `Evening! ${taskContext.completed}/${taskContext.total} done. Ready to finish the rest?`
-            }
-        };
+    const prompts = {
+      morning: {
+        hindi: `तुम एक दोस्त हो जो सुबह प्यार से पूछता है। User के ${taskContext.total} tasks हैं, ${taskContext.pending} अभी बाकी हैं। एक छोटा, warm message लिखो (max 2 sentences) जो user को motivate करे कि आज का दिन शुरू करें। Different style में लिखो हर बार - कभी enthusiastic, कभी gentle।`,
+        english: `You're a caring friend checking in on a morning. User has ${taskContext.total} tasks, ${taskContext.pending} still pending. Write a SHORT, warm morning message (max 2 sentences) that motivates them to start their day. Vary your style - sometimes enthusiastic, sometimes gentle.`,
+        hinglish: `Tum ek buddy ho jo morning mein check kar raha hai. User ke ${taskContext.total} tasks hain, ${taskContext.pending} pending hain. Ek short, caring message likh (max 2 sentences) jo unhe motivate kare. Har baar different style - kabhi energetic, kabhi soft.`
+      },
+      midday: {
+        hinglish: `Lunch time hai! User ke ${taskContext.completed}/${taskContext.total} tasks done hain. Ek quick, friendly check-in message likh (2 sentences) jo unhe appreciate kare ya gentle nudge de. Har baar unique bano.`
+      },
+      afternoon: {
+        hinglish: `Afternoon ho gayi, ${taskContext.pending} tasks bache hain. Ek motivational message likh jo user ko energize kare final push ke liye. Be creative, vary your approach each time.`
+      },
+      evening: {
+        hinglish: `Evening reflection time. User ne ${taskContext.completed}/${taskContext.total} tasks complete kiye. Ek thoughtful message likh jo celebrate kare achievements aur gently reflect kare kya improve kar sakte hain kal. Compassionate aur varied rahna.`
+      },
+      night: {
+        hinglish: `Raat ho gayi. User ka day ${taskContext.completed}/${taskContext.total} tasks ke saath khatam ho raha hai. Ek calming, appreciative good night message likh jo unhe rest karne ke liye encourage kare. Har baar different tone - kabhi proud, kabhi soothing.`
+      }
+    };
 
-        const selectedLang = language || "hinglish";
-        const message = prompts[type]?.[selectedLang] || prompts.morning.hinglish;
+    const selectedLang = language || "hinglish";
+    const prompt = prompts[type]?.[selectedLang] || prompts[type]?.hinglish || prompts.morning.hinglish;
 
-        res.json({ message });
-    } catch (error) {
-        console.error("Proactive check-in error:", error);
-        res.status(500).json({ error: "Failed to generate check-in" });
-    }
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: `${prompt}\n\nIMPORTANT: Write a UNIQUE message each time. Never repeat same patterns. Be genuinely caring like a real person.` },
+        { role: "user", content: `Current time: ${new Date().toLocaleTimeString()}. Generate check-in message.` }
+      ],
+      temperature: 0.9, // Higher for more variety
+      max_tokens: 150
+    });
+
+    const message = completion.choices[0].message.content;
+
+    res.json({ 
+      message,
+      actions: type === 'morning' ? [
+        { label: language === 'hindi' ? 'चलो शुरू करें!' : 'Let\'s Start!', action: 'start' }
+      ] : []
+    });
+
+  } catch (error) {
+    console.error("Proactive check-in error:", error);
+    res.status(500).json({ error: "Failed to generate check-in" });
+  }
 });
 
 // ─── START ──────────────────────────────────────────────────
