@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
+import Header from "../components/Header";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export default function Home() {
 
   return (
     <div className="home-container">
-      <header className="home-header">
+      {/* <header className="home-header">
         <div className="home-logo">
           <div className="logo-icon">
             <i className="fa-solid fa-calendar-check"></i>
@@ -76,8 +77,8 @@ export default function Home() {
             <i className="fa-solid fa-user"></i>
           </div>
         </nav>
-      </header>
-
+      </header> */}
+       <Header/>
       <main className="home-main">
         <div className="greeting-section">
           <h1 className="greeting-title">{getGreeting()}, {userName}</h1>

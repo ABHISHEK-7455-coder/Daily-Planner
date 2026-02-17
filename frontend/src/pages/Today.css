@@ -546,7 +546,8 @@ body {
     }
 
     .today-container>aside {
-        width: 100%;
+        width: 94%;
+        margin: auto;
     }
 
     .today-main {

@@ -49,16 +49,15 @@ function checkAlarm(alarm, now) {
 
     if (!alarm.isActive) return false;
     if (alarm.snoozedUntil && Date.now() < alarm.snoozedUntil) return false;
-
-    if (alarm.lastTriggered && Date.now() - alarm.lastTriggered < 60000) {
-        return false;
-    }
-
+    if (alarm.lastTriggered && Date.now() - alarm.lastTriggered < 60000) return false;
     if (now.getHours() !== h || now.getMinutes() !== m) return false;
 
+    const todayStr = now.toISOString().slice(0, 10);
+
     if (alarm.repeat === "once") {
-        if (!alarm.date) return true;
-        return alarm.date === now.toISOString().slice(0, 10);
+        // ← FIX: must have a date, and it must match today
+        if (!alarm.date) return false;   // was `return true` — that caused it to fire every day!
+        return alarm.date === todayStr;
     }
     if (alarm.repeat === "daily") return true;
     if (alarm.repeat === "custom") return alarm.repeatDays.includes(now.getDay());
@@ -69,19 +68,21 @@ function checkAlarm(alarm, now) {
 /* ===================== COMPONENT ===================== */
 
 const AlarmPlanner = forwardRef((props, ref) => {
+    const getTodayDate = () => new Date().toISOString().split("T")[0];
     const [alarms, dispatch] = useReducer(alarmReducer, []);
     const [activeAlarm, setActiveAlarm] = useState(null);
     const [audioEnabled, setAudioEnabled] = useState(false);
     const audioRef = useRef(null);
 
-    const [form, setForm] = useState({
-        hour: "1",
-        minute: "00",
-        period: "AM",
-        date: "",
-        label: "",
-        repeat: "once"
-    });
+   
+        const [form, setForm] = useState({
+            hour: "1",
+            minute: "00",
+            period: "AM",
+            date: getTodayDate(),   // ← FIX: always starts as today
+            label: "",
+            repeat: "once"
+        });
 
     // 🎯 EXPOSE METHOD FOR BUDDY INTEGRATION
     useImperativeHandle(ref, () => ({
