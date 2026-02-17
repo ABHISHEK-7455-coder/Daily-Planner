@@ -128,7 +128,7 @@ export default function Sidebar({
         <div className="sidebar-content">
 
           {/* ── Logo (hidden in dropdown) ── */}
-          {!asDropdown && (
+          {/* {!asDropdown && (
             <div className="sidebar-header">
               <div className="sidebar-logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
                 <div className="sidebar-logo-icon">🛋️</div>
@@ -138,11 +138,11 @@ export default function Sidebar({
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* ── Nav ── */}
           <div className="sidebar-nav">
-            <div className="sidebar-section-label">Menu</div>
+            {/* <div className="sidebar-section-label">Menu</div> */}
             {navItems.map((item, idx) => {
               const isActive = item.filter && activeFilter === item.filter;
               return (
