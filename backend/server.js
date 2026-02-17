@@ -23,7 +23,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─── CORS ──────────────────────────────────────────────────
 app.use(cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin:  "http://localhost:5173" ||process.env.FRONTEND_URL,
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
 }));
@@ -218,7 +218,7 @@ TASK COMPLETION MOTIVATION:
 When checking on tasks:
 - Don't just ask "ho gaya?" - be specific: "Writing documentation ho gaya?"
 - If user says no, immediately offer help:
-  "Koi problem aa rahi hai? Main steps de sakta hoon!"
+  "Koi problem aa rahi hai! Main steps de sakta hoon!"
 - Break big tasks into micro-steps
 - Celebrate every completion enthusiastically
 
@@ -269,6 +269,31 @@ app.post("/api/advanced-chat", async (req, res) => {
         if (!taskContext) {
             return res.status(400).json({ error: "taskContext is required" });
         }
+
+        // 🎯 NOTES BYPASS - ONLY NEW CODE ADDED HERE
+        const lastUserMessage = messages[messages.length - 1]?.content || "";
+        const isNotesRequest = /notes?\s+mein|daily\s+notes|meri\s+daily|mere\s+daily|diary\s+mein/i.test(lastUserMessage);
+        
+        if (isNotesRequest) {
+            console.log("🎯 NOTES DETECTED - BYPASSING AI");
+            let content = lastUserMessage
+                .replace(/^\s*(bhai\s+)?add\s+kar\s+(de|do)\s*/gi, '')
+                .replace(/^\s*notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*/gi, '')
+                .replace(/^\s*(meri|mere)\s+daily\s+notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*/gi, '')
+                .replace(/^\s*daily\s+notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*/gi, '')
+                .replace(/^\s*diary\s+mein\s+add\s+kar\s+do\s*/gi, '')
+                .replace(/\s*-?\s*notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*$/gi, '')
+                .replace(/\s*-?\s*(meri|mere)\s+daily\s+notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*$/gi, '')
+                .replace(/\s*-?\s*daily\s+notes?\s+mein\s+(add\s+kar\s+do|likh\s+do)\s*$/gi, '')
+                .trim();
+            console.log("📝 Content:", content);
+            return res.json({
+                type: "actions",
+                message: language === "hindi" ? "📝 नोट्स में add हो गया!" : language === "english" ? "📝 Added to your notes!" : "📝 Notes mein add ho gaya!",
+                actions: [{ type: "update_notes", params: { content: content, mode: "append" } }]
+            });
+        }
+        // END NOTES BYPASS - Everything below is UNCHANGED from your original
 
         const selectedLanguage = language || "hinglish";
         let systemPrompt = buildSystemPrompt(selectedLanguage, taskContext);
