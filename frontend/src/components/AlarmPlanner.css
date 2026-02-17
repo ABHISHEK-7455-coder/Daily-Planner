@@ -396,6 +396,7 @@
 /* ===== Responsive Design ===== */
 @media (max-width: 480px) {
     .planner {
+        width: 94vw;
         padding: 16px;
         border-radius: 20px;
     }
