@@ -68,7 +68,7 @@ const navigate = useNavigate()
             )}
             {openAlarm && (
                 <div className="alarm-dropdown">
-                    <AlarmPlanner onClose={closeAll} />
+                    <AlarmPlanner onClose={closeAll} />        
                 </div>
             )}
         </header>
