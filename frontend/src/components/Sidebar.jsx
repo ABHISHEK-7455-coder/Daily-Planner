@@ -1,12 +1,16 @@
+// 📌 Sidebar.jsx — Cozy Desk Style
+// Make sure Font Awesome 6 is loaded in index.html:
+// <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Sidebar.css";
 
 const getTimeOfDay = () => {
   const hour = new Date().getHours();
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  return "evening";
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
 };
 
 export default function Sidebar({
@@ -15,30 +19,29 @@ export default function Sidebar({
   activeFilter,
   onOpenReflection,
   onOpenWeeklySummary,
-  asDropdown = false,   // 👈 NEW PROP
-  onClose
+  asDropdown = false,
+  onClose,
 }) {
-  const [showModal, setShowModal] = useState(false);
-  const [dailyTasks, setDailyTasks] = useState([]);
-  const [hobbies, setHobbies] = useState([]);
-  const [taskInput, setTaskInput] = useState("");
-  const [hobbyInput, setHobbyInput] = useState("");
-  const [time, setTime] = useState("morning");
+  const [showModal, setShowModal]     = useState(false);
+  const [dailyTasks, setDailyTasks]   = useState([]);
+  const [hobbies, setHobbies]         = useState([]);
+  const [taskInput, setTaskInput]     = useState("");
+  const [hobbyInput, setHobbyInput]   = useState("");
+  const [time, setTime]               = useState(getTimeOfDay());
 
-  const todayKey = new Date().toISOString().split("T")[0];
-  const activeTime = getTimeOfDay();
-  const navigate = useNavigate();
+  const todayKey  = new Date().toISOString().split("T")[0];
+  const navigate  = useNavigate();
 
-  const completed = tasks.filter(t => t.completed).length;
-  const pending = tasks.filter(t => !t.completed).length;
-  const total = tasks.length;
+  const completed = tasks.filter((t) => t.completed).length;
+  const pending   = tasks.filter((t) => !t.completed).length;
+  const total     = tasks.length;
 
   const handleAction = (callback, value) => {
-  callback?.(value);
-  if (asDropdown) onClose?.();
-};
+    callback?.(value);
+    if (asDropdown) onClose?.();
+  };
 
-  /* 🔁 AUTO OPEN ONCE PER DAY */
+  /* Auto-open modal once per day */
   useEffect(() => {
     if (!asDropdown) {
       const lastOpened = localStorage.getItem("daily-modal-opened");
@@ -49,210 +52,220 @@ export default function Sidebar({
     }
   }, [todayKey, asDropdown]);
 
-  /* 🔹 LOAD */
   useEffect(() => {
     setDailyTasks(JSON.parse(localStorage.getItem("daily-tasks")) || []);
     setHobbies(JSON.parse(localStorage.getItem("daily-hobbies")) || []);
   }, []);
 
+  /* Close dropdown on outside click */
   useEffect(() => {
     if (!asDropdown) return;
-
     const handleClickOutside = (e) => {
-      if (!e.target.closest(".tasks-dropdown")) {
-        onClose?.();
-      }
+      if (!e.target.closest(".tasks-dropdown")) onClose?.();
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [asDropdown, onClose]);
 
-  /* 💾 SAVE */
-  const save = (tasks, hobbies) => {
-    localStorage.setItem("daily-tasks", JSON.stringify(tasks));
-    localStorage.setItem("daily-hobbies", JSON.stringify(hobbies));
+  const save = (t, h) => {
+    localStorage.setItem("daily-tasks",   JSON.stringify(t));
+    localStorage.setItem("daily-hobbies", JSON.stringify(h));
   };
 
   const addItem = (type) => {
-    if (!(type === "task" ? taskInput : hobbyInput).trim()) return;
-
-    const newItem = {
-      id: Date.now(),
-      text: type === "task" ? taskInput : hobbyInput,
-      done: false,
-      time
-    };
-
+    const val = type === "task" ? taskInput : hobbyInput;
+    if (!val.trim()) return;
+    const newItem = { id: Date.now(), text: val, done: false, time };
     if (type === "task") {
       const updated = [...dailyTasks, newItem];
-      setDailyTasks(updated);
-      save(updated, hobbies);
-      setTaskInput("");
+      setDailyTasks(updated); save(updated, hobbies); setTaskInput("");
     } else {
       const updated = [...hobbies, newItem];
-      setHobbies(updated);
-      save(dailyTasks, updated);
-      setHobbyInput("");
+      setHobbies(updated); save(dailyTasks, updated); setHobbyInput("");
     }
   };
 
   const toggleDone = (type, id) => {
-    const update = (list) =>
-      list.map(i => i.id === id ? { ...i, done: !i.done } : i);
-
+    const update = (list) => list.map((i) => i.id === id ? { ...i, done: !i.done } : i);
     if (type === "task") {
-      const updated = update(dailyTasks);
-      setDailyTasks(updated);
-      save(updated, hobbies);
+      const updated = update(dailyTasks); setDailyTasks(updated); save(updated, hobbies);
     } else {
-      const updated = update(hobbies);
-      setHobbies(updated);
-      save(dailyTasks, updated);
+      const updated = update(hobbies); setHobbies(updated); save(dailyTasks, updated);
     }
   };
 
+  const timePillClass = (t) =>
+    `time-pill time-pill-${t.toLowerCase()} ${time === t ? "time-pill-active" : ""}`;
+
   const renderList = (items, type) =>
-    items.map(item => (
-      <div
-        key={item.id}
-        className={`daily-item ${item.done ? "done" : ""} ${item.time === activeTime ? "active-time" : ""
-          }`}
-      >
+    items.map((item) => (
+      <div key={item.id} className="modal-list-item">
         <input
           type="checkbox"
           checked={item.done}
           onChange={() => toggleDone(type, item.id)}
         />
-        <span>{item.text}</span>
-        <small>{item.time}</small>
+        <span className={`modal-list-item-text ${item.done ? "done" : ""}`}>
+          {item.text}
+        </span>
+        <span className="modal-list-item-time">{item.time}</span>
       </div>
     ));
 
+  const navItems = [
+    { filter: "all",       icon: "fa-solid fa-list-check",  label: "All Tasks",      badge: total },
+    { filter: "pending",   icon: "fa-solid fa-hourglass-half", label: "Pending",     badge: pending },
+    { filter: "completed", icon: "fa-solid fa-circle-check", label: "Completed",    badge: completed },
+    { action: onOpenReflection,    icon: "fa-solid fa-chart-pie",    label: "Overview" },
+    { action: onOpenWeeklySummary, icon: "fa-solid fa-chart-line",   label: "Weekly Summary" },
+  ];
+
+  const wrapperClass = asDropdown ? "tasks-dropdown" : "sidebar-container";
+
   return (
     <>
-      <div className={asDropdown ? "tasks-dropdown" : "sidebar-container"}>
+      <div className={wrapperClass}>
         <div className="sidebar-content">
-          {/* <div className="sidebar-header">
-            <div className="sidebar-logo">
-              <div className="sidebar-logo-icon">📅</div>
-              <div className="sidebar-logo-text">
-                <div
-                  className="sidebar-logo-title"
-                  onClick={() => navigate("/")}
-                  style={{ cursor: "pointer" }}
-                >
-                  COZY SPACE
-                </div>
 
-                <div className="sidebar-logo-subtitle">Minimalist Edition</div>
+          {/* ── Logo (hidden in dropdown) ── */}
+          {!asDropdown && (
+            <div className="sidebar-header">
+              <div className="sidebar-logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
+                <div className="sidebar-logo-icon">🛋️</div>
+                <div className="sidebar-logo-text">
+                  <div className="sidebar-logo-title">Cozy Space</div>
+                  <div className="sidebar-logo-subtitle">Minimalist Edition</div>
+                </div>
               </div>
             </div>
-          </div> */}
+          )}
 
-          <nav className="sidebar-nav">
-            <button
-              className={`sidebar-nav-item ${activeFilter === "all" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => handleAction(onFilterChange, "all")}
+          {/* ── Nav ── */}
+          <div className="sidebar-nav">
+            <div className="sidebar-section-label">Menu</div>
+            {navItems.map((item, idx) => {
+              const isActive = item.filter && activeFilter === item.filter;
+              return (
+                <button
+                  key={idx}
+                  className={`sidebar-nav-item ${isActive ? "sidebar-nav-item-active" : ""}`}
+                  onClick={() =>
+                    item.filter
+                      ? handleAction(onFilterChange, item.filter)
+                      : handleAction(item.action)
+                  }
+                >
+                  <div className="sidebar-nav-icon">
+                    <i className={item.icon} />
+                  </div>
+                  <span className="sidebar-nav-label">{item.label}</span>
+                  {item.badge !== undefined && (
+                    <span className="sidebar-nav-badge">{item.badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-            >
-              <span className="sidebar-nav-icon">📋</span>
-              <span className="sidebar-nav-label">All Tasks</span>
-              <span className="sidebar-nav-badge">{total}</span>
-            </button>
+          <div className="sidebar-divider" />
 
-            <button
-              className={`sidebar-nav-item ${activeFilter === "pending" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => handleAction(onFilterChange, "pending")}
+          {/* ── Daily Notes Card ── */}
+          {!asDropdown && (
+            <div className="sidebar-notes-card">
+              <div className="sidebar-notes-title">
+                <i className="fa-solid fa-note-sticky" />
+                Daily Notes
+              </div>
+              <div className="sidebar-notes-subtitle">
+                Write freely about your day… or dictate using your AI Buddy!
+              </div>
+              <button className="sidebar-notes-action" onClick={() => setShowModal(true)}>
+                <i className="fa-solid fa-wand-magic-sparkles" />
+                Open Daily Tasks
+              </button>
+            </div>
+          )}
 
-            >
-              <span className="sidebar-nav-icon">⏳</span>
-              <span className="sidebar-nav-label">Pending</span>
-              <span className="sidebar-nav-badge">{pending}</span>
-            </button>
-
-            <button
-              className={`sidebar-nav-item ${activeFilter === "completed" ? "sidebar-nav-item-active" : ""}`}
-              onClick={() => handleAction(onFilterChange, "completed")}
-
-            >
-              <span className="sidebar-nav-icon">✓</span>
-              <span className="sidebar-nav-label">Completed</span>
-              <span className="sidebar-nav-badge">{completed}</span>
-            </button>
-
-            {/* <button
-              className="sidebar-nav-item"
-              onClick={() => setShowModal(true)}
-            >
-              <span className="sidebar-nav-icon">🔁</span>
-              <span className="sidebar-nav-label">Daily Tasks & Hobbies</span>
-            </button> */}
-
-            <button className="sidebar-nav-item" onClick={() => handleAction(onOpenReflection)}
->
-              <span className="sidebar-nav-icon">📊</span>
-              <span className="sidebar-nav-label">Overview</span>
-            </button>
-
-            <button className="sidebar-nav-item" onClick={() => handleAction(onOpenWeeklySummary)}
->
-              <span className="sidebar-nav-icon">📈</span>
-              <span className="sidebar-nav-label">Weekly Summary</span>
-            </button>
-          </nav>
+          {/* ── Footer ── */}
+          {!asDropdown && (
+            <div className="sidebar-footer">
+              <button className="sidebar-footer-item">
+                <i className="fa-solid fa-gear" />
+                Settings
+              </button>
+              <button className="sidebar-footer-item">
+                <i className="fa-solid fa-circle-question" />
+                Help & Support
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ================= MODAL ================= */}
+      {/* ════════════ MODAL ════════════ */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-container">
-            <header className="modal-header">
-              <h3>🌅 Daily Reminder</h3>
-              <button onClick={() => setShowModal(false)}>✕</button>
-            </header>
+        <div className="daily-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="daily-modal">
 
-            {/* ⏰ TIME SELECT */}
-            <div className="time-selector">
-              {["Morning", "Afternoon", "Evening"].map(t => (
-                <button
-                  key={t}
-                  className={time === t ? "active" : ""}
-                  onClick={() => setTime(t)}
-                >
-                  {t}
+            {/* Header */}
+            <div className="daily-modal-header">
+              <div className="daily-modal-title">
+                🌅 Daily Reminder
+              </div>
+              <button className="daily-modal-close" onClick={() => setShowModal(false)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            {/* Time Picker */}
+            <div className="time-pills">
+              {["Morning", "Afternoon", "Evening"].map((t) => (
+                <button key={t} className={timePillClass(t)} onClick={() => setTime(t)}>
+                  {t === "Morning" ? "🌤️" : t === "Afternoon" ? "☀️" : "🌙"} {t}
                 </button>
               ))}
             </div>
 
-            {/* 📋 TASKS */}
-            <section>
-              <h4>Daily Tasks</h4>
-              <div className="input-row">
+            {/* Tasks */}
+            <div className="modal-section">
+              <div className="modal-section-title">
+                <i className="fa-solid fa-list-check" /> Daily Tasks
+              </div>
+              <div className="modal-input-row">
                 <input
+                  className="modal-input"
                   value={taskInput}
-                  onChange={e => setTaskInput(e.target.value)}
-                  placeholder="Add task"
+                  onChange={(e) => setTaskInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addItem("task")}
+                  placeholder="Add a task…"
                 />
-                <button onClick={() => addItem("task")}>Add</button>
+                <button className="modal-add-btn" onClick={() => addItem("task")}>
+                  <i className="fa-solid fa-plus" /> Add
+                </button>
               </div>
               {renderList(dailyTasks, "task")}
-            </section>
+            </div>
 
-            {/* 🧠 HOBBIES */}
-            <section>
-              <h4>Hobbies</h4>
-              <div className="input-row">
+            {/* Hobbies */}
+            <div className="modal-section">
+              <div className="modal-section-title">
+                <i className="fa-solid fa-seedling" /> Hobbies
+              </div>
+              <div className="modal-input-row">
                 <input
+                  className="modal-input"
                   value={hobbyInput}
-                  onChange={e => setHobbyInput(e.target.value)}
-                  placeholder="Add hobby"
+                  onChange={(e) => setHobbyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addItem("hobby")}
+                  placeholder="Add a hobby…"
                 />
-                <button onClick={() => addItem("hobby")}>Add</button>
+                <button className="modal-add-btn" onClick={() => addItem("hobby")}>
+                  <i className="fa-solid fa-plus" /> Add
+                </button>
               </div>
               {renderList(hobbies, "hobby")}
-            </section>
+            </div>
+
           </div>
         </div>
       )}
