@@ -69,9 +69,10 @@ export default function TaskItem({
                             )}
                         </div>
 
-                        {task.startTime && task.endTime && (
+                        {/* 🎯 FIXED: Show time even if only startTime exists */}
+                        {task.startTime && (
                             <span className="task-item-time">
-                                {task.startTime} – {task.endTime}
+                                {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
                             </span>
                         )}
 
