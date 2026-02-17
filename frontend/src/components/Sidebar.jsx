@@ -113,11 +113,11 @@ export default function Sidebar({
     ));
 
   const navItems = [
-    { filter: "all",       icon: "fa-solid fa-list-check",  label: "All Tasks",      badge: total },
-    { filter: "pending",   icon: "fa-solid fa-hourglass-half", label: "Pending",     badge: pending },
-    { filter: "completed", icon: "fa-solid fa-circle-check", label: "Completed",    badge: completed },
-    { action: onOpenReflection,    icon: "fa-solid fa-chart-pie",    label: "Overview" },
-    { action: onOpenWeeklySummary, icon: "fa-solid fa-chart-line",   label: "Weekly Summary" },
+    { filter: "all",       dataKey: "all",       icon: "fa-solid fa-list-check",     label: "All Tasks",     badge: total },
+    { filter: "pending",   dataKey: "pending",   icon: "fa-solid fa-hourglass-half", label: "Pending",       badge: pending },
+    { filter: "completed", dataKey: "completed", icon: "fa-solid fa-circle-check",   label: "Completed",     badge: completed },
+    { action: onOpenReflection,    dataKey: "overview", icon: "fa-solid fa-chart-pie",  label: "Overview" },
+    { action: onOpenWeeklySummary, dataKey: "weekly",   icon: "fa-solid fa-chart-line", label: "Weekly Summary" },
   ];
 
   const wrapperClass = asDropdown ? "tasks-dropdown" : "sidebar-container";
@@ -149,6 +149,8 @@ export default function Sidebar({
                 <button
                   key={idx}
                   className={`sidebar-nav-item ${isActive ? "sidebar-nav-item-active" : ""}`}
+                  data-filter={item.filter || undefined}
+                  data-action={!item.filter ? item.dataKey : undefined}
                   onClick={() =>
                     item.filter
                       ? handleAction(onFilterChange, item.filter)
@@ -170,7 +172,7 @@ export default function Sidebar({
           <div className="sidebar-divider" />
 
           {/* ── Daily Notes Card ── */}
-          {!asDropdown && (
+          {/* {!asDropdown && (
             <div className="sidebar-notes-card">
               <div className="sidebar-notes-title">
                 <i className="fa-solid fa-note-sticky" />
@@ -184,7 +186,7 @@ export default function Sidebar({
                 Open Daily Tasks
               </button>
             </div>
-          )}
+          )} */}
 
           {/* ── Footer ── */}
           {!asDropdown && (
