@@ -173,12 +173,12 @@
   transition: transform 0.2s ease;
 }
 
-/* Per-item icon pill colors */
-.sidebar-nav-item:nth-child(1) .sidebar-nav-icon { background: #dceeff; color: #4a90d9; }
-.sidebar-nav-item:nth-child(2) .sidebar-nav-icon { background: #fff0d6; color: #e8923a; }
-.sidebar-nav-item:nth-child(3) .sidebar-nav-icon { background: #d6f5e3; color: #3aac6b; }
-.sidebar-nav-item:nth-child(4) .sidebar-nav-icon { background: #ecdcff; color: #9a5ce8; }
-.sidebar-nav-item:nth-child(5) .sidebar-nav-icon { background: #ffd9e8; color: #d94a7a; }
+/* Per-item icon pill colors — keyed by data-filter attribute for reliability */
+.sidebar-nav-item[data-filter="all"]       .sidebar-nav-icon { background: #dceeff; color: #4a90d9; }
+.sidebar-nav-item[data-filter="pending"]   .sidebar-nav-icon { background: #fff0d6; color: #e8923a; }
+.sidebar-nav-item[data-filter="completed"] .sidebar-nav-icon { background: #d6f5e3; color: #3aac6b; }
+.sidebar-nav-item[data-action="overview"]  .sidebar-nav-icon { background: #ecdcff; color: #9a5ce8; }
+.sidebar-nav-item[data-action="weekly"]    .sidebar-nav-icon { background: #ffd9e8; color: #d94a7a; }
 
 .sidebar-nav-item:hover .sidebar-nav-icon {
   transform: scale(1.1);
@@ -305,21 +305,23 @@
   color: var(--text-dark);
 }
 
-/* ─── Dropdown Variant ─── */
+/* ─── Dropdown Variant (used by Header on mobile) ───
+   This is a standalone popup — styles here must NOT inherit from .sidebar-container.
+   Header.jsx renders <Sidebar asDropdown={true} /> which uses this class as its root. */
 .tasks-dropdown {
   position: absolute;
   top: 70px;
-  right: 180px;
-  width: 300px;
-  max-height: 480px;
+  right: 16px;
+  width: 280px;
+  max-height: 460px;
   overflow-y: auto;
   background: #ffffff;
   border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.13), 0 4px 16px rgba(0,0,0,0.06);
-  padding: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.13), 0 4px 16px rgba(0, 0, 0, 0.06);
+  padding: 14px 12px;
   animation: dropdownSlide 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 9999;
-  border: 1px solid rgba(0,0,0,0.05);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 @keyframes dropdownSlide {
@@ -556,20 +558,10 @@
 }
 
 /* ─── Mobile ─── */
-@media (max-width: 450px) {
+/* Hide the desktop sidebar on small screens.
+   The header dropdown (.tasks-dropdown) is handled separately in Header.css — do NOT touch it here. */
+@media (max-width: 768px) {
   .sidebar-container {
-    width: 100%;
-    height: auto;
-    position: relative;
-    padding: 16px 12px;
-    display: none;
+    display: none; /* Desktop sidebar hides; Header renders its own dropdown instead */
   }
-
-  .sidebar-nav-item {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-
-  .sidebar-logo-title { font-size: 15px; }
-  .sidebar-logo-icon { width: 38px; height: 38px; font-size: 18px; }
 }
