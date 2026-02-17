@@ -1,51 +1,276 @@
+/* ═══════════════════════════════════════════════════
+   DAY CALENDAR — root
+═══════════════════════════════════════════════════ */
 .day-calendar {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    height: 1440px; /* 24h * 60px */
-    position: relative;
-    border-top: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: #fafafa;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #ece8ff;
 }
 
-.day-calendar-time {
-    border-right: 1px solid #e5e7eb;
-}
-
-.day-calendar-hour {
-    height: 60px;
-    padding: 4px 8px;
-    font-size: 12px;
-    color: #6b7280;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.day-calendar-events {
-    position: relative;
-}
-
-.day-calendar-hour-slot {
-    height: 60px;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.calendar-task {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    background: #2563eb;
-    color: white;
-    border-radius: 6px;
-    padding: 6px 8px;
+/* ── Shared section title ────────────────────────── */
+.dc-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
+    font-weight: 700;
+    color: #4a4a6a;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 14px 16px 8px;
+}
+
+/* ═══════════════════════════════════════════════════
+   UNSCHEDULED CHIP LIST
+═══════════════════════════════════════════════════ */
+.dc-unscheduled {
+    border-bottom: 1px solid #ece8ff;
+    padding-bottom: 12px;
+}
+
+.dc-chip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 12px;
+}
+
+.dc-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
     cursor: pointer;
+    font-size: 14px;
+    transition: filter 0.15s, transform 0.1s;
+    user-select: none;
+}
+.dc-chip:hover {
+    filter: brightness(0.96);
+    transform: translateX(2px);
+}
+.dc-chip-done {
+    opacity: 0.5;
+}
+.dc-chip-done .dc-chip-title {
+    text-decoration: line-through;
+    color: #999;
+}
+
+.dc-chip-title {
+    flex: 1;
+    font-weight: 500;
+    color: #2d2d4e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dc-chip-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.dc-chip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #fff;
+    padding: 3px 9px;
+    border-radius: 20px;
+    text-transform: capitalize;
+    font-weight: 600;
+}
+
+.dc-chip-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #e17055;
+    font-weight: 700;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+/* ═══════════════════════════════════════════════════
+   TIMED GRID
+═══════════════════════════════════════════════════ */
+.dc-grid-wrapper {
     overflow: hidden;
 }
 
-.calendar-task-done {
-    opacity: 0.6;
+/* The actual scrollable grid */
+.dc-grid {
+
+    position: relative;
+    /* height set inline via JS (24 * 60 * PX_PER_MINUTE) */
+    overflow-x: hidden;
+    padding-left: 56px;   /* room for hour labels */
+    margin: 10px 12px 16px;
+    border-radius: 10px;
+    border: 1px solid #ece8ff;
+    background: #fff;
+}
+
+/* ── Hour rows (lines + labels) ──────────────────── */
+.dc-hour-row {
+    position: absolute;
+    
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: flex-start;
+    /* top set inline */
+}
+
+.dc-hour-label {
+    
+    position: absolute;
+    top:10px;
+    left: 0;
+    width: 52px;
+    text-align: right;
+    padding-right: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a0a0bc;
+    line-height: 1;
+    transform: translateY(-6px);
+    user-select: none;
+}
+
+.dc-hour-line {
+    position: absolute;
+    top:10px;
+    left: 56px;
+    right: 0;
+    height: 1px;
+    background: #f0eeff;
+}
+
+/* Every 6th hour (0, 6, 12, 18) → slightly stronger */
+.dc-hour-row:nth-child(6n+1) .dc-hour-line {
+    background: #d8d0ff;
+}
+
+/* ── Event blocks ────────────────────────────────── */
+.dc-event {
+    position: absolute;
+    left: 60px;
+    right: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.dc-event:hover {
+    filter: brightness(0.95);
+    transform: translateX(2px);
+    z-index: 10;
+}
+
+.dc-event-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 10px;
+    height: 100%;
+}
+
+.dc-event-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dc-event-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d2d4e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dc-event-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #6b6b8a;
+    font-weight: 500;
+}
+
+.dc-event-live {
+    margin-left: auto;
+    color: #e17055;
+    font-size: 13px;
+    animation: pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.dc-event-done {
+    opacity: 0.45;
+}
+.dc-event-done .dc-event-title {
     text-decoration: line-through;
 }
 
-.calendar-task-time {
-    font-size: 11px;
+/* Pin variant (start-only) */
+.dc-event-pin {
     opacity: 0.9;
+}
+
+/* ─── Current time indicator ─────────────────────── */
+.dc-now-line {
+    position: absolute;
+    left: 52px;
+    right: 4px;
+    height: 2px;
+    background: #e74c3c;
+    z-index: 20;
+    border-radius: 2px;
+}
+.dc-now-line::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e74c3c;
+}
+
+/* ═══════════════════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════════════════ */
+.dc-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px 0;
+    color: #b0a8cc;
+}
+.dc-empty p {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
 }

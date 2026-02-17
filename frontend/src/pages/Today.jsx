@@ -16,6 +16,7 @@ import AlarmPlanner from "../components/AlarmPlanner";
 import AdvancedBuddy from "../components/Chatbuddy";
 
 import "./Today.css";
+import Header from "../components/Header";
 
 /* 📅 DATE HELPERS */
 const formatKey = (date) => date.toISOString().slice(0, 10);
@@ -433,7 +434,17 @@ const handleUpdateNotes = (content, mode = 'append') => {
   };
 
   return (
+    <>
+    <Header
+               tasks={tasks}
+                    activeFilter={taskFilter}
+                    onFilterChange={setTaskFilter}
+                    onOpenReflection={() => setShowReflection(true)}
+                    onOpenWeeklySummary={() => setShowWeekly(true)}
+            />
+  
     <div className="today-container">
+       
       <PushNotifications />
 
       <Sidebar
@@ -446,7 +457,7 @@ const handleUpdateNotes = (content, mode = 'append') => {
 
       <main className="today-main">
         <div className={`today-header cognitive-${cognitiveState}`}>
-          <h2>Tasks</h2>
+          {/* <h2>Tasks</h2> */}
 
           <div className="today-date-navigation">
             <button onClick={() => goToDay(-1)}>⬅</button>
@@ -553,5 +564,7 @@ const handleUpdateNotes = (content, mode = 'append') => {
       {/* 🎯 FIXED: Add ref to AlarmPlanner */}
       <AlarmPlanner ref={alarmPlannerRef} />
     </div>
+    
+  </>
   );
 }
