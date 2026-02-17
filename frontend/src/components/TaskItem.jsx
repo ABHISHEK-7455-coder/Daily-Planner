@@ -34,64 +34,63 @@ export default function TaskItem({
         <div className={`task-item ${task.completed ? "task-item-completed" : ""}`}>
             {/* LEFT */}
             <div className="task-item-left">
-                <div className="task-item-left-title">
+                <input
+                    type="checkbox"
+                    className="task-item-checkbox"
+                    checked={task.completed}
+                    onChange={() => onToggle(task.id)}
+                />
+
+                {isEditing ? (
                     <input
-                        type="checkbox"
-                        className="task-item-checkbox"
-                        checked={task.completed}
-                        onChange={() => onToggle(task.id)}
+                        className="task-item-edit-input"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onBlur={() => {
+                            onEdit(task.id, text);
+                            setIsEditing(false);
+                        }}
+                        autoFocus
                     />
+                ) : (
+                    <div className="task-item-content">
+                        <div className="task-item-title-row">
+                            <span
+                                className="task-item-title"
+                                onDoubleClick={() => setIsEditing(true)}
+                            >
+                                {task.title}
+                            </span>
 
-                    {isEditing ? (
-                        <input
-                            className="task-item-edit-input"
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            onBlur={() => {
-                                onEdit(task.id, text);
-                                setIsEditing(false);
-                            }}
-                            autoFocus
-                        />
-                    ) : (
-                        <div className="task-item-content">
-                            <div className="task-item-title-row">
-                                <span
-                                    className="task-item-title"
-                                    onDoubleClick={() => setIsEditing(true)}
-                                >
-                                    {task.title}
-                                </span>
-
-                                {task.snoozed && !task.completed && (
-                                    <span className="task-item-snoozed-badge">
-                                        Snoozed
-                                    </span>
-                                )}
-                            </div>
-
-                            {task.startTime && task.endTime && (
-                                <span className="task-item-time">
-                                    {task.startTime} – {task.endTime}
-                                </span>
-                            )}
-
-                            {/* 🆕 TRACKING STATUS */}
-                            {task.status === "running" && (
-                                <span className="task-item-live">⏱ In Progress</span>
-                            )}
-
-                            {task.status === "done" && task.actualTime !== null && (
-                                <span className="task-item-live">
-                                    ✅ Completed in {task.actualTime} min
-                                    {task.startedAt && task.completedAt && (
-                                        <> ({formatClockTime(task.startedAt)} – {formatClockTime(task.completedAt)})</>
-                                    )}
+                            {task.snoozed && !task.completed && (
+                                <span className="task-item-snoozed-badge">
+                                    Snoozed
                                 </span>
                             )}
                         </div>
-                    )}
-                </div>
+
+                        {/* 🎯 FIXED: Show time even if only startTime exists */}
+                        {task.startTime && (
+                            <span className="task-item-time">
+                                {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
+                            </span>
+                        )}
+
+                        {/* 🆕 TRACKING STATUS */}
+                        {task.status === "running" && (
+                            <span className="task-item-live">⏱ In Progress</span>
+                        )}
+
+                        {task.status === "done" && task.actualTime !== null && (
+                            <span className="task-item-live">
+                                ✅ Completed in {task.actualTime} min
+                                {task.startedAt && task.completedAt && (
+                                    <> ({formatClockTime(task.startedAt)} – {formatClockTime(task.completedAt)})</>
+                                )}
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* RIGHT ACTIONS */}
