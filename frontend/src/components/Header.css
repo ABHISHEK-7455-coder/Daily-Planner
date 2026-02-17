@@ -128,7 +128,7 @@
 }
 
 @media (max-width: 450px) {
-    .home-nav {}
+    
     .alarm-dropdown {
         right: 0px;
         width: 99%;
