@@ -36,7 +36,7 @@ export default function TaskGuideModal({ task, onClose }) {
 
                     return { title, description };
                 })
-                .slice(0, 5); // ✅ still only 5 steps
+                .slice(0, 8); // ✅ still only 5 steps
 
             setSteps(parsedSteps);
             setLoading(false);

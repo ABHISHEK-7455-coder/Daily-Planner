@@ -6,10 +6,10 @@ export async function getTaskGuide(taskTitle) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`
+                Authorization: `Bearer ${import.meta.env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-                model: import.meta.env.VITE_AI_MODEL || "gpt-4o-mini",
+                model: import.meta.env.GROQ_MODEL || "gpt-4o-mini",
                 messages: [
                     {
                         role: "system",
