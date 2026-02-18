@@ -39,7 +39,7 @@ export default function ProgressBar({ total, completed }) {
         <div className="progress-container">
             <div className="progress-header">
                 <div className="progress-info">
-                    <h3 className="progress-title">Daily Goal</h3>
+                    {/* <h3 className="progress-title">Daily Goal</h3> */}
                     <p className="progress-subtitle">
                         {completed} of {total} tasks completed
                     </p>
