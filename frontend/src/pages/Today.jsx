@@ -447,13 +447,13 @@ const handleUpdateNotes = (content, mode = 'append') => {
        
       <PushNotifications />
 
-      <Sidebar
+      {/* <Sidebar
         tasks={tasks}
         activeFilter={taskFilter}
         onFilterChange={setTaskFilter}
         onOpenReflection={() => setShowReflection(true)}
         onOpenWeeklySummary={() => setShowWeekly(true)}
-      />
+      /> */}
 
       <main className="today-main">
         <div className={`today-header cognitive-${cognitiveState}`}>

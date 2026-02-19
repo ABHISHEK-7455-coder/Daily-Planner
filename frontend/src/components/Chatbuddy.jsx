@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./ChatBuddy.css";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const API_URL = "http://localhost:3001" ||import.meta.env.VITE_BACKEND_URL;
 
 export default function AdvancedBuddy({
   currentDate,
@@ -27,19 +27,41 @@ export default function AdvancedBuddy({
   const [proactiveActions, setProactiveActions] = useState([]);
   const [taskReminders, setTaskReminders] = useState(new Set());
   const [taskCheckIns, setTaskCheckIns] = useState(new Set());
-  
+  const [hasGreeted, setHasGreeted] = useState(false);
+
+  // ─── Nudge Bubble State (floating speech bubble on blob) ──
+  const [nudgeBubble, setNudgeBubble] = useState(null);     // { message, quickActions }
+  const [showNudge, setShowNudge] = useState(false);
+  const [nudgeIndex, setNudgeIndex] = useState(0);
+  const [blobMood, setBlobMood] = useState("idle");          // idle | happy | thinking
+  const nudgeTimerRef = useRef(null);
+  const nudgeFetchedRef = useRef(false);
+
+  // ─── Conversational Flow State ──────────────────────────
+  // Both state (for rendering) + refs (for sync reads in async callbacks)
+  const [activeFlow, setActiveFlowState] = useState(null);
+  const [flowStep, setFlowStepState] = useState(null);
+  const [flowData, setFlowDataState] = useState({});
+  const [quickActions, setQuickActions] = useState([]);
+
+  // Refs — always in sync, safe to read inside async functions
+  const activeFlowRef = useRef(null);
+  const flowStepRef = useRef(null);
+  const flowDataRef = useRef({});
+
+  // Setters that update both ref + state atomically
+  const setActiveFlow = (v) => { activeFlowRef.current = v; setActiveFlowState(v); };
+  const setFlowStep  = (v) => { flowStepRef.current  = v; setFlowStepState(v); };
+  const setFlowData  = (v) => { flowDataRef.current  = v; setFlowDataState(v); };
+
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const interimTranscriptRef = useRef("");
   const reminderIntervalRef = useRef(null);
   const checkInIntervalRef = useRef(null);
+  const monitorIntervalRef = useRef(null);
 
-  // 🎯 DEBUG: Log when onUpdateNotes changes
-  useEffect(() => {
-    console.log("🔍 ChatBuddy: onUpdateNotes callback:", onUpdateNotes ? "✅ Available" : "❌ Missing");
-  }, [onUpdateNotes]);
-
-  // Scroll to bottom
+  // ─── Auto-scroll ────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -48,16 +70,128 @@ export default function AdvancedBuddy({
     localStorage.setItem("buddy-language", language);
   }, [language]);
 
-  // Initialize Speech Recognition
+  // ─── Greet user when chat opens ─────────────────────────
   useEffect(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      console.warn("Speech recognition not supported");
+    if (isOpen && !hasGreeted && messages.length === 0) {
+      fetchBuddyIntro();
+      setHasGreeted(true);
+    }
+  }, [isOpen]);
+
+  // Reset greeting when date changes
+  useEffect(() => {
+    setHasGreeted(false);
+    setMessages([]);
+    setActiveFlow(null);
+    setFlowStep(null);
+    setFlowData({});
+    setQuickActions([]);
+  }, [currentDate]);
+
+  // ─── Proactive monitoring ────────────────────────────────
+  useEffect(() => {
+    if (monitorIntervalRef.current) clearInterval(monitorIntervalRef.current);
+
+    monitorIntervalRef.current = setInterval(() => {
+      runProactiveMonitor();
+    }, 5 * 60 * 1000); // every 5 minutes
+
+    return () => clearInterval(monitorIntervalRef.current);
+  }, [tasks, language]);
+
+  // ─── Nudge bubble cycling (shows when chat is CLOSED) ─────
+  const nudgeIdxRef = useRef(0);
+  const nudgeLoadingRef = useRef(false);
+
+  useEffect(() => {
+    if (nudgeTimerRef.current) clearInterval(nudgeTimerRef.current);
+
+    if (isOpen) {
+      setShowNudge(false);
       return;
     }
 
+    // Show first bubble immediately
+    nudgeIdxRef.current = 0;
+    fetchNudge(0);
+
+    // Rotate every 10s — long enough for API + reading time
+    nudgeTimerRef.current = setInterval(() => {
+      nudgeIdxRef.current = (nudgeIdxRef.current + 1) % 4;
+      fetchNudge(nudgeIdxRef.current);
+    }, 10000);
+
+    return () => clearInterval(nudgeTimerRef.current);
+  // re-run when chat closes, tasks change, or language changes
+  }, [isOpen, tasks.length, language]);
+
+  // Static fallback bubbles — shown instantly, replaced by AI version when ready
+  const FALLBACK_NUDGES = [
+    { message: "Hey! 👋 I'm your buddy. Tap me to chat!", quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }] },
+    { message: "Got tasks to finish? Let me help you plan! 🎯", quickActions: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "➕ Add Task", action: "add_task_flow" }] },
+    { message: "How was your day so far? Write it in notes 📝", quickActions: [{ label: "📝 Write Notes", action: "notes_flow" }, { label: "💬 Chat", action: "open_chat" }] },
+    { message: "Want to set a reminder or alarm? I can help! ⏰", quickActions: [{ label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "🔔 Reminder", action: "reminder_flow" }] }
+  ];
+
+  const fetchNudge = async (idx) => {
+    if (nudgeLoadingRef.current) return; // prevent overlap
+    nudgeLoadingRef.current = true;
+
+    // Show fallback immediately so bubble is never empty
+    setShowNudge(false); // brief hide for transition
+    setTimeout(() => {
+      setNudgeBubble(FALLBACK_NUDGES[idx % 4]);
+      setBlobMood("happy");
+      setShowNudge(true);
+      setTimeout(() => setBlobMood("idle"), 800);
+    }, 150);
+
+    // Then silently upgrade to AI version in background
+    try {
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+      const res = await fetch(`${API_URL}/api/buddy-nudge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language, taskContext: getTaskContext(), currentTime, nudgeIndex: idx })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Only update if we're still on the same nudge index
+        if (nudgeIdxRef.current === idx) {
+          setNudgeBubble({ message: data.message, quickActions: data.quickActions });
+        }
+      }
+    } catch (_) {
+      // fallback already showing, no action needed
+    } finally {
+      nudgeLoadingRef.current = false;
+    }
+  };
+
+  // ─── Task monitoring ─────────────────────────────────────
+  useEffect(() => {
+    if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
+    if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
+
+    reminderIntervalRef.current = setInterval(() => checkTaskReminders(), 60000);
+    checkInIntervalRef.current = setInterval(() => checkTaskCompletions(), 60000);
+
+    checkTaskReminders();
+    checkTaskCompletions();
+
+    return () => {
+      clearInterval(reminderIntervalRef.current);
+      clearInterval(checkInIntervalRef.current);
+    };
+  }, [tasks, currentDate, language]);
+
+  // ─── Speech Recognition ──────────────────────────────────
+  useEffect(() => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language === "hindi" ? "hi-IN" : "en-IN";
@@ -70,29 +204,18 @@ export default function AdvancedBuddy({
     recognition.onresult = (event) => {
       let interimTranscript = "";
       let finalTranscript = "";
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
+        if (event.results[i].isFinal) finalTranscript += transcript;
+        else interimTranscript += transcript;
       }
-
       if (interimTranscript) {
         interimTranscriptRef.current = interimTranscript;
         setMessages(prev => {
           const filtered = prev.filter(m => !m.interim);
-          return [...filtered, {
-            role: "user",
-            content: interimTranscript,
-            interim: true,
-            timestamp: new Date()
-          }];
+          return [...filtered, { role: "user", content: interimTranscript, interim: true, timestamp: new Date() }];
         });
       }
-
       if (finalTranscript) {
         setMessages(prev => prev.filter(m => !m.interim));
         handleSendMessage(finalTranscript);
@@ -100,65 +223,219 @@ export default function AdvancedBuddy({
       }
     };
 
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
-      setIsListening(false);
-    };
-
+    recognition.onerror = () => setIsListening(false);
     recognition.onend = () => {
       setIsListening(false);
       setMessages(prev => prev.filter(m => !m.interim));
     };
 
     recognitionRef.current = recognition;
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
+    return () => recognitionRef.current?.stop();
   }, [language]);
 
-  // Proactive check-ins
-  useEffect(() => {
-    if (!isOpen) {
-      checkProactivePopup();
+  // ─── FETCH BUDDY INTRO ───────────────────────────────────
+  const fetchBuddyIntro = async () => {
+    setIsProcessing(true);
+    try {
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+      const response = await fetch(`${API_URL}/api/buddy-intro`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language,
+          taskContext: getTaskContext(),
+          currentTime,
+          currentDate
+        })
+      });
+
+      const data = await response.json();
+
+      setMessages([{
+        role: "assistant",
+        content: data.message,
+        timestamp: new Date(),
+        isIntro: true
+      }]);
+
+      if (data.quickActions) {
+        setQuickActions(data.quickActions);
+      }
+    } catch (error) {
+      console.error("Buddy intro error:", error);
+      setMessages([{
+        role: "assistant",
+        content: language === "english"
+          ? "Hey! I'm your AI buddy 👋 I'm here to help you plan your day, add tasks, set alarms, and keep you on track! What would you like to do?"
+          : language === "hindi"
+          ? "नमस्ते! मैं आपका AI buddy हूं 👋 Tasks, alarms, reminders - सब manage करता हूं! क्या करें?"
+          : "Hey! Main aapka AI buddy hoon 👋 Tasks add karo, alarm lagao, reminder set karo - sab handle karta hoon! Kya karna hai?",
+        timestamp: new Date(),
+        isIntro: true
+      }]);
+      setQuickActions([
+        { label: "➕ Add Task", action: "add_task_flow" },
+        { label: "⏰ Set Alarm", action: "alarm_flow" },
+        { label: "🔔 Reminder", action: "reminder_flow" },
+        { label: "📅 Plan My Day", action: "plan_day_flow" }
+      ]);
+    } finally {
+      setIsProcessing(false);
     }
-  }, [tasks, currentDate]);
+  };
 
-  // Task monitoring
-  useEffect(() => {
-    if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
-    if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
+  // ─── HANDLE QUICK ACTION BUTTON CLICK ────────────────────
+  const handleQuickAction = async (action) => {
+    if (action === "dismiss") {
+      setQuickActions([]);
+      return;
+    }
 
-    reminderIntervalRef.current = setInterval(() => {
-      checkTaskReminders();
-    }, 60000);
+    // Start the guided flow
+    setActiveFlow(action);
+    setFlowStep("start");
+    setFlowData({});
+    setQuickActions([]);
 
-    checkInIntervalRef.current = setInterval(() => {
-      checkTaskCompletions();
-    }, 60000);
+    await executeFlowStep(action, "start", null, {});
+  };
 
-    checkTaskReminders();
-    checkTaskCompletions();
+  // ─── EXECUTE FLOW STEP ───────────────────────────────────
+  const executeFlowStep = async (flow, step, userInput, currentFlowData) => {
+    setIsProcessing(true);
+    try {
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    return () => {
-      if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
-      if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
-    };
-  }, [tasks, currentDate, language]);
+      const response = await fetch(`${API_URL}/api/flow-step`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow,
+          step,
+          userInput,
+          language,
+          taskContext: getTaskContext(),
+          flowData: currentFlowData,
+          currentTime,
+          currentDate
+        })
+      });
 
+      const data = await response.json();
+
+      // Add assistant message
+      if (data.message) {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: data.message,
+          timestamp: new Date(),
+          isFlow: true
+        }]);
+      }
+
+      // Execute any actions (add task, set alarm, etc.)
+      if (data.actions && data.actions.length > 0) {
+        for (const action of data.actions) {
+          await handleAction(action);
+        }
+      }
+
+      // Update flow state — update refs first so next message read is correct
+      if (data.flow && data.nextStep && data.nextStep !== "done") {
+        const merged = { ...flowDataRef.current, ...(data.flowData || {}) };
+        setActiveFlow(data.flow);
+        setFlowStep(data.nextStep);
+        setFlowData(merged);
+      } else {
+        // Flow completed — reset everything
+        setActiveFlow(null);
+        setFlowStep(null);
+        setFlowData({});
+      }
+
+      // Set quick action buttons
+      if (data.quickActions) {
+        setQuickActions(data.quickActions);
+      } else {
+        setQuickActions([]);
+      }
+
+    } catch (error) {
+      console.error("Flow step error:", error);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Sorry, something went wrong. Try again!",
+        timestamp: new Date()
+      }]);
+      setActiveFlow(null);
+      setFlowStep(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ─── PROACTIVE MONITOR ───────────────────────────────────
+  const runProactiveMonitor = async () => {
+    if (isOpen) return; // Don't show popup if chat is open
+
+    const now = new Date();
+    const hour = now.getHours();
+    const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const taskCtx = getTaskContext();
+
+    if (taskCtx.total === 0) return;
+
+    let monitorType = null;
+    if (hour === 8 || hour === 9) monitorType = "morning_kickoff";
+    else if (taskCtx.pending > 0) monitorType = "overdue_check";
+    else if (hour >= 20 && hour <= 22) monitorType = "end_of_day";
+
+    if (!monitorType) return;
+
+    const monitorKey = `monitor-${monitorType}-${currentDate}-${hour}`;
+    if (localStorage.getItem(monitorKey)) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/proactive-monitor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language, taskContext: taskCtx, currentTime, monitorType })
+      });
+
+      const data = await response.json();
+
+      if (data.shouldNotify && data.message) {
+        localStorage.setItem(monitorKey, Date.now().toString());
+        setProactiveMessage(data.message);
+        setProactiveActions(data.quickActions?.map(qa => ({
+          label: qa.label,
+          type: qa.action === "check_task_flow" ? "primary" : "secondary",
+          action: () => {
+            setShowProactivePopup(false);
+            setIsOpen(true);
+            handleQuickAction(qa.action);
+          }
+        })) || []);
+        setShowProactivePopup(true);
+      }
+    } catch (error) {
+      console.error("Proactive monitor error:", error);
+    }
+  };
+
+  // ─── TASK REMINDERS ──────────────────────────────────────
   const checkTaskReminders = async () => {
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
 
     for (const task of tasks) {
       if (!task.startTime || task.completed) continue;
-
       const [hours, minutes] = task.startTime.split(':').map(Number);
       const taskStartTime = hours * 60 + minutes;
       const timeDiff = taskStartTime - currentTime;
-
       const reminderKey = `reminder-${task.id}-${currentDate}`;
       if (timeDiff === 10 && !taskReminders.has(reminderKey)) {
         setTaskReminders(prev => new Set(prev).add(reminderKey));
@@ -170,14 +447,11 @@ export default function AdvancedBuddy({
   const checkTaskCompletions = async () => {
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
-
     for (const task of tasks) {
       if (!task.startTime || task.completed) continue;
-
       const [hours, minutes] = task.startTime.split(':').map(Number);
       const taskStartTime = hours * 60 + minutes;
       const timePassed = currentTime - taskStartTime;
-
       const checkInKey = `checkin-${task.id}-${currentDate}`;
       if (timePassed === 30 && !task.completed && !taskCheckIns.has(checkInKey)) {
         setTaskCheckIns(prev => new Set(prev).add(checkInKey));
@@ -193,50 +467,36 @@ export default function AdvancedBuddy({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task, language, currentDate })
       });
-
       const data = await response.json();
-      
-      const motivationalMessages = {
+
+      const messages = {
         hindi: `⏰ "${task.title}" 10 मिनट में शुरू होने वाला है। तैयार हो जाओ!`,
         english: `⏰ "${task.title}" starts in 10 minutes. Get ready!`,
         hinglish: `⏰ "${task.title}" 10 min mein start hone wala hai. Ready ho jao!`
       };
 
-      setProactiveMessage(motivationalMessages[language] || motivationalMessages.hinglish);
+      setProactiveMessage(messages[language] || messages.hinglish);
       setProactiveActions([
         {
-          label: language === "hindi" ? "शुरू करता हूं 💪" : language === "english" ? "Let's Do It 💪" : "Chalo Shuru Karte Hain 💪",
+          label: language === "hindi" ? "शुरू करता हूं 💪" : language === "english" ? "Let's Go 💪" : "Chalo Shuru! 💪",
           type: "primary",
           action: () => {
             setShowProactivePopup(false);
             setIsOpen(true);
             setMessages(prev => [...prev, {
               role: "assistant",
-              content: language === "hindi" 
-                ? `बहुत बढ़िया! "${task.title}" के लिए तैयार हो? कोई मदद चाहिए?`
-                : language === "english"
-                ? `Great! Ready for "${task.title}"? Need any help?`
-                : `Badhiya! "${task.title}" ke liye ready ho? Koi help chahiye?`,
+              content: language === "english" ? `Great! Ready for "${task.title}"? You've got this! 💪` : `Badhiya! "${task.title}" ke liye ready ho? All the best! 💪`,
               timestamp: new Date()
             }]);
           }
         },
         {
-          label: language === "hindi" ? "बाद में" : language === "english" ? "Remind Later" : "Baad Mein",
+          label: language === "english" ? "Remind Later" : "Baad Mein",
           type: "secondary",
           action: () => setShowProactivePopup(false)
         }
       ]);
       setShowProactivePopup(true);
-
-      if (isOpen) {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: `⏰ ${motivationalMessages[language] || motivationalMessages.hinglish}`,
-          timestamp: new Date(),
-          isReminder: true
-        }]);
-      }
     } catch (error) {
       console.error("Task reminder error:", error);
     }
@@ -244,166 +504,121 @@ export default function AdvancedBuddy({
 
   const sendTaskCheckIn = async (task) => {
     try {
-      const response = await fetch(`${API_URL}/api/task-checkin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, language, currentDate })
-      });
-
-      const data = await response.json();
-      
       const checkInMessages = {
-        hindi: `🤔 "${task.title}" हो गया क्या? अगर नहीं हुआ तो कोई बात नहीं - मैं मदद कर सकता हूं!`,
-        english: `🤔 Did you finish "${task.title}"? If not, no worries - I can help!`,
-        hinglish: `🤔 "${task.title}" ho gaya kya? Agar nahi hua to koi baat nahi - main help kar sakta hoon!`
+        hindi: `🤔 "${task.title}" हो गया क्या?`,
+        english: `🤔 Did you finish "${task.title}"?`,
+        hinglish: `🤔 "${task.title}" ho gaya kya?`
       };
 
       setProactiveMessage(checkInMessages[language] || checkInMessages.hinglish);
       setProactiveActions([
         {
-          label: language === "hindi" ? "हो गया! ✅" : language === "english" ? "Done! ✅" : "Ho Gaya! ✅",
+          label: language === "english" ? "Done! ✅" : "Ho Gaya! ✅",
           type: "primary",
           action: () => {
             onCompleteTask(task.id);
             setShowProactivePopup(false);
-            
-            const celebrationMsg = {
-              hindi: `🎉 शाबाश! "${task.title}" पूरा हो गया! अगला क्या है?`,
-              english: `🎉 Awesome! "${task.title}" completed! What's next?`,
-              hinglish: `🎉 Shabaash! "${task.title}" complete ho gaya! Agla kya hai?`
-            };
-            
             setIsOpen(true);
             setMessages(prev => [...prev, {
               role: "assistant",
-              content: celebrationMsg[language] || celebrationMsg.hinglish,
+              content: language === "english" ? `🎉 Awesome! "${task.title}" done!` : `🎉 Shabaash! "${task.title}" complete ho gaya!`,
               timestamp: new Date()
             }]);
+            setQuickActions([
+              { label: "Mark Another Done", action: "check_task_flow" },
+              { label: "Add Task", action: "add_task_flow" }
+            ]);
           }
         },
         {
-          label: language === "hindi" ? "अभी नहीं - मदद चाहिए" : language === "english" ? "Not Yet - Need Help" : "Abhi Nahi - Help Chahiye",
+          label: language === "english" ? "Need Help 🤔" : "Help Chahiye 🤔",
           type: "secondary",
           action: () => {
             setShowProactivePopup(false);
             setIsOpen(true);
-            
-            const helpMsg = {
-              hindi: `कोई बात नहीं! "${task.title}" में क्या problem आ रही है? मैं इसे छोटे steps में तोड़ सकता हूं या tips दे सकता हूं!`,
-              english: `No problem! What's challenging about "${task.title}"? I can break it into smaller steps or give you tips!`,
-              hinglish: `Koi baat nahi! "${task.title}" mein kya problem aa rahi hai? Main isko chhote steps mein tod sakta hoon ya tips de sakta hoon!`
-            };
-            
             setMessages(prev => [...prev, {
               role: "assistant",
-              content: helpMsg[language] || helpMsg.hinglish,
-              timestamp: new Date(),
-              isCheckIn: true
+              content: language === "english"
+                ? `No problem! What's blocking you on "${task.title}"? Let's break it down.`
+                : `Koi baat nahi! "${task.title}" mein kya problem aa rahi hai? Main help karta hoon!`,
+              timestamp: new Date()
             }]);
           }
         }
       ]);
       setShowProactivePopup(true);
-
-      if (isOpen) {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: `🤔 ${checkInMessages[language] || checkInMessages.hinglish}`,
-          timestamp: new Date(),
-          isCheckIn: true
-        }]);
-      }
     } catch (error) {
       console.error("Task check-in error:", error);
     }
   };
 
-  const checkProactivePopup = async () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const lastPopupKey = `last-proactive-popup-${currentDate}`;
-    const lastPopup = localStorage.getItem(lastPopupKey);
-
-    if (lastPopup) return;
-
-    let type = null;
-    if (hour === 8) type = "morning";
-    else if (hour === 12) type = "midday";
-    else if (hour === 18) type = "evening";
-    else if (hour === 22) type = "night";
-
-    if (!type) return;
-
-    try {
-      const taskContext = getTaskContext();
-      const response = await fetch(`${API_URL}/api/proactive-checkin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, language, taskContext, currentDate })
-      });
-
-      const data = await response.json();
-      setProactiveMessage(data.message);
-      setShowProactivePopup(true);
-      localStorage.setItem(lastPopupKey, Date.now().toString());
-    } catch (error) {
-      console.error("Proactive popup error:", error);
-    }
-  };
-
+  // ─── GET TASK CONTEXT ────────────────────────────────────
   const getTaskContext = () => {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
     const pending = total - completed;
-    const pendingTasks = tasks.filter(t => !t.completed);
-    const completedTasks = tasks.filter(t => t.completed);
-
-    return { total, completed, pending, pendingTasks, completedTasks };
+    return {
+      total,
+      completed,
+      pending,
+      pendingTasks: tasks.filter(t => !t.completed),
+      completedTasks: tasks.filter(t => t.completed)
+    };
   };
 
+  // ─── MAIN MESSAGE HANDLER ────────────────────────────────
   const handleSendMessage = async (text) => {
     if (!text.trim()) return;
 
-    const userMessage = {
-      role: "user",
-      content: text,
-      timestamp: new Date()
-    };
-
+    const userMessage = { role: "user", content: text, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInputText("");
-    setIsProcessing(true);
+    setQuickActions([]);
 
+    // If we're in a guided flow, continue it (use refs for sync reads)
+    if (activeFlowRef.current && flowStepRef.current) {
+      await executeFlowStep(activeFlowRef.current, flowStepRef.current, text, flowDataRef.current);
+      return;
+    }
+
+    // Otherwise use the regular chat endpoint
+    setIsProcessing(true);
     try {
-      const taskContext = getTaskContext();
       const response = await fetch(`${API_URL}/api/advanced-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMessage],
           language,
-          taskContext,
+          taskContext: getTaskContext(),
           isVoice: inputMode === "voice",
           currentDate,
-          voiceMode: voiceMode
+          voiceMode
         })
       });
 
       const data = await response.json();
 
-      // Handle actions
       if (data.actions && data.actions.length > 0) {
         for (const action of data.actions) {
           await handleAction(action);
         }
       }
 
-      // Add assistant response
       setMessages(prev => [...prev, {
         role: "assistant",
         content: data.message,
         timestamp: new Date()
       }]);
+
+      // Show contextual quick actions after regular chat response
+      const ctx = getTaskContext();
+      if (ctx.pending > 0) {
+        setQuickActions([
+          { label: "✅ Mark Done", action: "check_task_flow" },
+          { label: "➕ Add Task", action: "add_task_flow" }
+        ]);
+      }
 
     } catch (error) {
       console.error("Chat error:", error);
@@ -417,414 +632,168 @@ export default function AdvancedBuddy({
     }
   };
 
+  // ─── ACTION HANDLER ──────────────────────────────────────
   const handleAction = async (action) => {
     console.log("🎯 Handling action:", action);
-    
+
     switch (action.type) {
       case "set_alarm":
-        console.log("⏰ Setting alarm:", action.params);
-        
-        if (onAddAlarm) {
-          onAddAlarm(action.params);
-          
-          const alarmMsg = {
-            hindi: `⏰ Alarm set ho gaya - ${action.params.time} pe ${action.params.date ? action.params.date + ' ko' : ''} bajega! "${action.params.label || 'Alarm'}"`,
-            english: `⏰ Alarm set for ${action.params.time} ${action.params.date ? 'on ' + action.params.date : ''}! "${action.params.label || 'Alarm'}"`,
-            hinglish: `⏰ Alarm set ho gaya - ${action.params.time} pe ${action.params.date ? action.params.date + ' ko' : ''} bajega! "${action.params.label || 'Alarm'}"`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: alarmMsg[language] || alarmMsg.hinglish,
-            timestamp: new Date()
-          }]);
-        }
+        if (onAddAlarm) onAddAlarm(action.params);
         break;
-      
+
       case "set_reminder":
-        console.log("⏰ Setting reminder:", action.params);
         await scheduleReminder(action.params.time, action.params.message);
-        
-        const reminderMsg = {
-          hindi: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`,
-          english: `⏰ Reminder set for ${action.params.time} - you'll get a notification!`,
-          hinglish: `⏰ Reminder set ho gaya - ${action.params.time} pe notification aayega!`
-        };
-        
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: reminderMsg[language] || reminderMsg.hinglish,
-          timestamp: new Date()
-        }]);
         break;
-        
+
       case "add_task":
-        console.log("✅ Adding task:", action.params);
         onAddTask(
           action.params.title,
           action.params.timeOfDay,
           action.params.startTime || null,
           action.params.endTime || null
         );
-        
-        let timeDisplay = "";
-        if (action.params.startTime && action.params.endTime) {
-          timeDisplay = ` (${action.params.startTime} - ${action.params.endTime})`;
-        } else if (action.params.startTime) {
-          timeDisplay = ` (${action.params.startTime} pe)`;
-        }
-        
-        const confirmMsg = {
-          hindi: `✅ "${action.params.title}" task add ho gaya${timeDisplay}!`,
-          english: `✅ Added "${action.params.title}"${timeDisplay}!`,
-          hinglish: `✅ "${action.params.title}" task add ho gaya${timeDisplay}!`
-        };
-        
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: confirmMsg[language] || confirmMsg.hinglish,
-          timestamp: new Date()
-        }]);
         break;
-      
-      case "complete_task":
-        let taskToComplete = tasks.find(t => 
-          t.title.toLowerCase() === action.params.taskTitle.toLowerCase()
+
+      case "complete_task": {
+        let taskToComplete = tasks.find(t =>
+          t.title.toLowerCase() === action.params.taskTitle?.toLowerCase()
+        ) || tasks.find(t =>
+          t.title.toLowerCase().includes(action.params.taskTitle?.toLowerCase())
+        ) || tasks.find(t =>
+          action.params.taskTitle?.toLowerCase().includes(t.title.toLowerCase())
         );
-        
-        if (!taskToComplete) {
-          taskToComplete = tasks.find(t => 
-            t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
-          );
-        }
-        
-        if (!taskToComplete) {
-          taskToComplete = tasks.find(t => 
-            action.params.taskTitle.toLowerCase().includes(t.title.toLowerCase())
-          );
-        }
-        
+
         if (taskToComplete) {
-          console.log("✓ Completing task:", taskToComplete);
           onCompleteTask(taskToComplete.id);
-          
-          const completeMsg = {
-            hindi: `🎉 बढ़िया! "${taskToComplete.title}" complete हो गया!`,
-            english: `🎉 Great! "${taskToComplete.title}" is done!`,
-            hinglish: `🎉 Badhiya! "${taskToComplete.title}" complete ho gaya!`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: completeMsg[language] || completeMsg.hinglish,
-            timestamp: new Date()
-          }]);
-        } else {
-          const pendingTasks = tasks.filter(t => !t.completed);
-          const taskList = pendingTasks.map(t => `"${t.title}"`).join(", ");
-          
-          const notFoundMsg = {
-            hindi: `Pending tasks: ${taskList}. Kaun sa complete karna hai?`,
-            english: `Pending tasks: ${taskList}. Which one to complete?`,
-            hinglish: `Pending tasks: ${taskList}. Kaun sa complete karna hai?`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: notFoundMsg[language] || notFoundMsg.hinglish,
-            timestamp: new Date()
-          }]);
         }
         break;
-      
-      case "delete_task":
-        console.log("🔍 Searching for task to delete:", action.params.taskTitle);
-        console.log("📋 Available tasks:", tasks.map(t => t.title));
-        
-        let taskToDelete = tasks.find(t => 
-          t.title.toLowerCase() === action.params.taskTitle.toLowerCase()
+      }
+
+      case "delete_task": {
+        let taskToDelete = tasks.find(t =>
+          t.title.toLowerCase() === action.params.taskTitle?.toLowerCase()
+        ) || tasks.find(t =>
+          t.title.toLowerCase().includes(action.params.taskTitle?.toLowerCase())
+        ) || tasks.find(t =>
+          action.params.taskTitle?.toLowerCase().includes(t.title.toLowerCase())
         );
-        
+
         if (!taskToDelete) {
-          taskToDelete = tasks.find(t => 
-            t.title.toLowerCase().includes(action.params.taskTitle.toLowerCase())
-          );
-        }
-        
-        if (!taskToDelete) {
-          taskToDelete = tasks.find(t => 
-            action.params.taskTitle.toLowerCase().includes(t.title.toLowerCase())
-          );
-        }
-        
-        if (!taskToDelete) {
-          const searchWords = action.params.taskTitle.toLowerCase().split(' ');
+          const searchWords = action.params.taskTitle?.toLowerCase().split(' ') || [];
           taskToDelete = tasks.find(t => {
             const taskWords = t.title.toLowerCase().split(' ');
             return searchWords.some(sw => taskWords.some(tw => tw.includes(sw) || sw.includes(tw)));
           });
         }
-        
-        if (!taskToDelete && tasks.length > 0) {
-          taskToDelete = tasks[tasks.length - 1];
-          console.log("⚠️ Using last task as fallback:", taskToDelete.title);
-        }
-        
-        if (taskToDelete) {
-          console.log("🗑️ Deleting task:", taskToDelete.title);
-          onDeleteTask(taskToDelete.id);
-          
-          const deleteMsg = {
-            hindi: `🗑️ "${taskToDelete.title}" delete ho gaya!`,
-            english: `🗑️ Deleted "${taskToDelete.title}"!`,
-            hinglish: `🗑️ "${taskToDelete.title}" delete ho gaya!`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: deleteMsg[language] || deleteMsg.hinglish,
-            timestamp: new Date()
-          }]);
-        } else {
-          const notFoundMsg = {
-            hindi: `Koi task nahi mila delete karne ke liye.`,
-            english: `No task found to delete.`,
-            hinglish: `Koi task nahi mila delete karne ke liye.`
-          };
-          
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: notFoundMsg[language] || notFoundMsg.hinglish,
-            timestamp: new Date()
-          }]);
-        }
+
+        if (taskToDelete) onDeleteTask(taskToDelete.id);
         break;
-      
+      }
+
       case "update_notes":
-        console.log("📝 ChatBuddy: update_notes action triggered");
-        console.log("📝 Content:", action.params.content);
-        console.log("📝 Mode:", action.params.mode || 'append');
-        console.log("📝 onUpdateNotes callback exists?", !!onUpdateNotes);
-        
         if (onUpdateNotes) {
-          try {
-            onUpdateNotes(action.params.content, action.params.mode || 'append');
-            console.log("✅ onUpdateNotes called successfully");
-            
-            const notesMsg = {
-              hindi: `📝 नोट्स में add हो गया!`,
-              english: `📝 Added to your notes!`,
-              hinglish: `📝 Notes mein add ho gaya!`
-            };
-            
-            setMessages(prev => [...prev, {
-              role: "assistant",
-              content: notesMsg[language] || notesMsg.hinglish,
-              timestamp: new Date()
-            }]);
-          } catch (error) {
-            console.error("❌ Error calling onUpdateNotes:", error);
-            setMessages(prev => [...prev, {
-              role: "assistant",
-              content: "Sorry, couldn't update notes. Please try again.",
-              timestamp: new Date()
-            }]);
-          }
-        } else {
-          console.error("❌ onUpdateNotes callback is not available!");
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: "Notes feature not connected. Please check the app setup.",
-            timestamp: new Date()
-          }]);
+          onUpdateNotes(action.params.content, action.params.mode || 'append');
         }
         break;
-        
+
       default:
-        console.warn("Unknown action type:", action.type);
+        console.warn("Unknown action:", action.type);
     }
   };
-  
+
+  // ─── REMINDER SCHEDULER ──────────────────────────────────
   const scheduleReminder = async (time, message) => {
     const [hours, minutes] = time.split(':').map(Number);
     const now = new Date();
     const reminderTime = new Date();
     reminderTime.setHours(hours, minutes, 0, 0);
-    
-    if (reminderTime <= now) {
-      reminderTime.setDate(reminderTime.getDate() + 1);
-    }
-    
+    if (reminderTime <= now) reminderTime.setDate(reminderTime.getDate() + 1);
+
     const delay = reminderTime.getTime() - now.getTime();
-    
-    console.log(`⏰ Scheduling reminder for ${time}, delay: ${Math.round(delay/1000)}s`);
-    
+
     if ('Notification' in window && Notification.permission === 'default') {
       await Notification.requestPermission();
     }
-    
+
     const reminders = JSON.parse(localStorage.getItem('pending-reminders') || '[]');
-    const reminder = {
-      id: Date.now(),
-      time,
-      message: message || `Reminder at ${time}`,
-      scheduledFor: reminderTime.toISOString()
-    };
+    const reminder = { id: Date.now(), time, message: message || `Reminder at ${time}`, scheduledFor: reminderTime.toISOString() };
     reminders.push(reminder);
     localStorage.setItem('pending-reminders', JSON.stringify(reminders));
-    
+
     setTimeout(async () => {
-      await showServiceWorkerNotification(reminder.message);
-      
-      const updated = JSON.parse(localStorage.getItem('pending-reminders') || '[]');
-      const filtered = updated.filter(r => r.id !== reminder.id);
-      localStorage.setItem('pending-reminders', JSON.stringify(filtered));
-    }, delay);
-  };
-  
-  const showServiceWorkerNotification = async (message) => {
-    console.log("🔔 Sending notification:", message);
-    
-    if ('serviceWorker' in navigator && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      
-      if (Notification.permission === 'granted') {
+      if ('serviceWorker' in navigator && Notification.permission === 'granted') {
         try {
           const registration = await navigator.serviceWorker.ready;
-          
           await registration.showNotification('AI Buddy Reminder ⏰', {
             body: message,
             icon: '/icon-192x192.png',
-            badge: '/icon-192x192.png',
-            vibrate: [200, 100, 200, 100, 200],
+            vibrate: [200, 100, 200],
             tag: 'buddy-reminder-' + Date.now(),
             requireInteraction: true,
-            actions: [
-              { action: 'open', title: 'Open App 📱' },
-              { action: 'dismiss', title: 'Got it ✓' }
-            ],
-            data: { url: '/' }
+            actions: [{ action: 'open', title: 'Open App 📱' }, { action: 'dismiss', title: 'Got it ✓' }]
           });
-          
-          console.log("✅ Service worker notification sent");
-        } catch (error) {
-          console.error("Service worker notification failed:", error);
-          new Notification('AI Buddy Reminder ⏰', {
-            body: message,
-            icon: '/icon-192x192.png'
-          });
+        } catch (e) {
+          new Notification('AI Buddy ⏰', { body: message });
         }
-      } else {
-        console.log("Notification permission denied");
       }
-    }
+      const updated = JSON.parse(localStorage.getItem('pending-reminders') || '[]');
+      localStorage.setItem('pending-reminders', JSON.stringify(updated.filter(r => r.id !== reminder.id)));
+    }, delay);
   };
 
+  // ─── VOICE INPUT ─────────────────────────────────────────
   const toggleVoiceInput = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-    }
+    if (isListening) recognitionRef.current?.stop();
+    else recognitionRef.current?.start();
   };
 
   const handleTextSubmit = (e) => {
     e.preventDefault();
-    if (inputText.trim()) {
-      handleSendMessage(inputText);
-    }
+    if (inputText.trim()) handleSendMessage(inputText);
   };
 
-  const getGreeting = () => {
-    if (voiceMode === "notes") {
-      const greetings = {
-        hindi: "डेली नोट्स मोड। अपने विचार बोलें या लिखें!",
-        english: "Daily Notes Mode. Speak or write your thoughts!",
-        hinglish: "Daily Notes Mode. Apne thoughts bolo ya likho!"
-      };
-      return greetings[language] || greetings.hinglish;
-    } else if (voiceMode === "tasks") {
-      const greetings = {
-        hindi: "टास्क मोड। टास्क जोड़ें, पूरा करें, या मैनेज करें!",
-        english: "Tasks Mode. Add, complete, or manage your tasks!",
-        hinglish: "Tasks Mode. Add karo, complete karo, ya manage karo!"
-      };
-      return greetings[language] || greetings.hinglish;
-    } else {
-      const greetings = {
-        hindi: "नमस्ते! मैं आपका AI साथी हूं। कैसे मदद करूं?",
-        english: "Hey! I'm your AI buddy. How can I help you today?",
-        hinglish: "Hey! Main aapka AI buddy hoon. Kaise help karoon?"
-      };
-      return greetings[language] || greetings.hinglish;
-    }
+  // ─── FLOW STATUS LABEL ───────────────────────────────────
+  const getFlowStatusLabel = () => {
+    if (!activeFlow) return null;
+    const labels = {
+      add_task_flow: { icon: "➕", text: language === "english" ? "Adding task..." : "Task add ho raha hai..." },
+      alarm_flow: { icon: "⏰", text: language === "english" ? "Setting alarm..." : "Alarm set ho raha hai..." },
+      reminder_flow: { icon: "🔔", text: language === "english" ? "Setting reminder..." : "Reminder set ho raha hai..." },
+      plan_day_flow: { icon: "📅", text: language === "english" ? "Planning your day..." : "Din plan ho raha hai..." },
+      notes_flow: { icon: "📝", text: language === "english" ? "Writing notes..." : "Notes likh rahe hain..." },
+      check_task_flow: { icon: "✅", text: language === "english" ? "Marking task done..." : "Task complete kar rahe hain..." }
+    };
+    return labels[activeFlow] || null;
   };
 
-  const getInputPlaceholder = () => {
-    if (inputMode === "voice") {
-      return language === "hindi" 
-        ? "बोलें या टाइप करें..." 
-        : language === "english"
-        ? "Speak or type..."
-        : "Bolo ya type karo...";
-    }
-    return language === "hindi"
-      ? "यहां टाइप करें..."
-      : language === "english"
-      ? "Type here..."
-      : "Yahan type karo...";
-  };
+  const taskCtx = getTaskContext();
 
+  // ─── RENDER ───────────────────────────────────────────────
   return (
     <>
-      {/* Proactive Popup */}
+      {/* ─── Proactive task-reminder popup (full overlay, unchanged) ─── */}
       {showProactivePopup && (
         <div className="proactive-popup-overlay">
           <div className="proactive-popup">
-            <button 
-              className="popup-close"
-              onClick={() => setShowProactivePopup(false)}
-            >
-              ×
-            </button>
-            
+            <button className="popup-close" onClick={() => setShowProactivePopup(false)}>×</button>
             <div className="popup-icon-container">
-              <div className="popup-icon">
-                <i className="fas fa-heart"></i>
-              </div>
+              <div className="popup-icon"><i className="fas fa-heart"></i></div>
             </div>
-            
             <p className="popup-message">{proactiveMessage}</p>
-            
             <div className="popup-actions">
               {proactiveActions.length > 0 ? (
                 proactiveActions.map((action, idx) => (
-                  <button
-                    key={idx}
-                    className={`popup-action-btn ${action.type}`}
-                    onClick={action.action}
-                  >
+                  <button key={idx} className={`popup-action-btn ${action.type}`} onClick={action.action}>
                     {action.label}
                   </button>
                 ))
               ) : (
                 <>
-                  <button 
-                    className="popup-action-btn primary"
-                    onClick={() => {
-                      setShowProactivePopup(false);
-                      setIsOpen(true);
-                    }}
-                  >
-                    <i className="fas fa-comment-dots"></i> {language === "hindi" ? "चैट खोलें" : language === "english" ? "Open Chat" : "Chat Kholo"}
+                  <button className="popup-action-btn primary" onClick={() => { setShowProactivePopup(false); setIsOpen(true); }}>
+                    <i className="fas fa-comment-dots"></i> {language === "english" ? "Open Chat" : "Chat Kholo"}
                   </button>
-                  <button 
-                    className="popup-action-btn secondary"
-                    onClick={() => setShowProactivePopup(false)}
-                  >
-                    <i className="fas fa-clock"></i> {language === "hindi" ? "बाद में" : language === "english" ? "Later" : "Baad Mein"}
+                  <button className="popup-action-btn secondary" onClick={() => setShowProactivePopup(false)}>
+                    {language === "english" ? "Later" : "Baad Mein"}
                   </button>
                 </>
               )}
@@ -833,117 +802,163 @@ export default function AdvancedBuddy({
         </div>
       )}
 
-      {/* Floating Buddy Button */}
-      <button
-        className={`advanced-buddy-toggle ${isListening ? 'listening' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle AI Buddy"
-      >
-        <div className="buddy-avatar">
-          <div className="avatar-face">
+      {/* ─── FLOATING BLOB + SPEECH BUBBLE WIDGET ─── */}
+      <div className="buddy-float-zone">
+
+        {/* Speech bubble — shown when chat is closed */}
+        {!isOpen && showNudge && nudgeBubble && (
+          <div className="buddy-speech-bubble" key={nudgeIndex}>
+            <div className="bubble-sparkle">✦</div>
+            <p className="bubble-text">{nudgeBubble.message}</p>
+            <div className="bubble-chips">
+              {nudgeBubble.quickActions?.map((qa, i) => (
+                <button
+                  key={i}
+                  className="bubble-chip"
+                  onClick={() => {
+                    setShowNudge(false);
+                    if (qa.action === "open_chat") {
+                      setIsOpen(true);
+                    } else {
+                      setIsOpen(true);
+                      // Small delay so chat window renders first
+                      setTimeout(() => handleQuickAction(qa.action), 200);
+                    }
+                  }}
+                >
+                  {qa.label}
+                </button>
+              ))}
+            </div>
+            {/* Bubble tail */}
+            {/* Progress dots */}
+            <div className="bubble-dots">
+              {[0,1,2,3].map(i => (
+                <div key={i} className={`bubble-dot ${nudgeIdxRef.current === i ? 'active' : ''}`} />
+              ))}
+            </div>
+            <div className="bubble-tail" />
+          </div>
+        )}
+
+        {/* The blob character button */}
+        <button
+          className={`buddy-blob ${isListening ? 'listening' : ''} ${blobMood} ${isOpen ? 'open' : ''}`}
+          onClick={() => {
+            setIsOpen(!isOpen);
+            setShowNudge(false);
+          }}
+          aria-label="Toggle AI Buddy"
+        >
+          {/* Blob face */}
+          <div className="blob-face">
             {isListening ? (
-              <div className="sound-waves">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div className="blob-sound-waves">
+                <span/><span/><span/>
               </div>
+            ) : isOpen ? (
+              <span className="blob-eye-x">✕</span>
             ) : (
-              <i className="fas fa-smile-beam"></i>
+              <>
+                <span className="blob-eyes">
+                  <span className="blob-eye" />
+                  <span className="blob-eye" />
+                </span>
+                <span className="blob-smile" />
+              </>
             )}
           </div>
-        </div>
-      </button>
+
+        </button>
+
+      </div>
 
       {/* Chat Window */}
       {isOpen && (
         <div className="advanced-buddy-window">
+          {/* Header */}
           <div className="buddy-header">
             <div className="buddy-info">
-              <div className="buddy-avatar-small">
-                <i className="fas fa-smile-beam"></i>
-              </div>
+              <div className="buddy-avatar-small"><i className="fas fa-smile-beam"></i></div>
               <div>
                 <h4>AI Buddy</h4>
                 <p className="buddy-status">
-                  <i className="fas fa-circle" style={{fontSize: '8px', marginRight: '4px', color: '#55efc4'}}></i>
-                  {language === "hindi" ? "यहाँ मदद के लिए" : language === "english" ? "Here to help" : "Madad ke liye yahan"}
+                  <i className="fas fa-circle" style={{ fontSize: '8px', marginRight: '4px', color: '#55efc4' }}></i>
+                  {taskCtx.total > 0
+                    ? `${taskCtx.completed}/${taskCtx.total} done today`
+                    : language === "english" ? "Here to help" : "Madad ke liye yahan"}
                 </p>
               </div>
             </div>
             <button className="close-btn" onClick={() => setIsOpen(false)}>×</button>
           </div>
 
-          {/* Language Selection */}
+          {/* Language + Mode Tabs */}
           <div className="voice-mode-tabs">
-            <button
-              className={language === "hindi" ? "active" : ""}
-              onClick={() => setLanguage("hindi")}
-            >
-              <i className="fas fa-language"></i> हिंदी
-            </button>
-            <button
-              className={language === "english" ? "active" : ""}
-              onClick={() => setLanguage("english")}
-            >
-              <i className="fas fa-globe"></i> EN
-            </button>
-            <button
-              className={language === "hinglish" ? "active" : ""}
-              onClick={() => setLanguage("hinglish")}
-            >
-              <i className="fas fa-comments"></i> Mix
-            </button>
+            {["hindi", "english", "hinglish"].map(lang => (
+              <button key={lang} className={language === lang ? "active" : ""} onClick={() => setLanguage(lang)}>
+                {lang === "hindi" ? "🇮🇳 हिंदी" : lang === "english" ? "🌐 EN" : "🎭 Mix"}
+              </button>
+            ))}
           </div>
 
-          {/* Voice Mode Selection */}
           <div className="voice-mode-tabs" style={{ borderTop: '1px solid var(--buddy-border)' }}>
-            <button
-              className={voiceMode === "chat" ? "active" : ""}
-              onClick={() => setVoiceMode("chat")}
-            >
-              <i className="fas fa-comment-dots"></i> {language === "hindi" ? "चैट" : "Chat"}
-            </button>
-            <button
-              className={voiceMode === "tasks" ? "active" : ""}
-              onClick={() => setVoiceMode("tasks")}
-            >
-              <i className="fas fa-check-circle"></i> {language === "hindi" ? "टास्क" : "Tasks"}
-            </button>
-            <button
-              className={voiceMode === "notes" ? "active" : ""}
-              onClick={() => setVoiceMode("notes")}
-            >
-              <i className="fas fa-sticky-note"></i> {language === "hindi" ? "नोट्स" : "Notes"}
-            </button>
+            {["chat", "tasks", "notes"].map(mode => (
+              <button key={mode} className={voiceMode === mode ? "active" : ""} onClick={() => setVoiceMode(mode)}>
+                {mode === "chat" && <><i className="fas fa-comment-dots"></i> {language === "hindi" ? "चैट" : "Chat"}</>}
+                {mode === "tasks" && <><i className="fas fa-check-circle"></i> {language === "hindi" ? "टास्क" : "Tasks"}</>}
+                {mode === "notes" && <><i className="fas fa-sticky-note"></i> {language === "hindi" ? "नोट्स" : "Notes"}</>}
+              </button>
+            ))}
           </div>
+
+          {/* Active Flow Indicator */}
+          {activeFlow && getFlowStatusLabel() && (
+            <div className="flow-indicator">
+              <span className="flow-icon">{getFlowStatusLabel().icon}</span>
+              <span className="flow-text">{getFlowStatusLabel().text}</span>
+              <button className="flow-cancel" onClick={() => {
+                setActiveFlow(null);
+                setFlowStep(null);
+                setFlowData({});
+                // reset refs explicitly too
+                activeFlowRef.current = null;
+                flowStepRef.current = null;
+                flowDataRef.current = {};
+                setQuickActions([
+                  { label: "➕ Add Task", action: "add_task_flow" },
+                  { label: "⏰ Set Alarm", action: "alarm_flow" },
+                  { label: "📅 Plan Day", action: "plan_day_flow" }
+                ]);
+              }}>
+                ✕ Cancel
+              </button>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="buddy-messages">
-            {messages.length === 0 && (
+            {messages.length === 0 && !isProcessing && (
               <div className="message assistant">
                 <div className="message-content">
-                  <i className="fas fa-sparkles" style={{marginRight: '6px', color: '#fdcb6e'}}></i>
-                  {getGreeting()}
+                  <i className="fas fa-sparkles" style={{ marginRight: '6px', color: '#fdcb6e' }}></i>
+                  {language === "english"
+                    ? "Hey! Opening your buddy... 👋"
+                    : language === "hindi"
+                    ? "नमस्ते! लोड हो रहा है... 👋"
+                    : "Hey! Load ho raha hai... 👋"}
                 </div>
               </div>
             )}
 
             {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`message ${msg.role} ${msg.interim ? 'interim' : ''} ${msg.isReminder ? 'reminder-message' : ''} ${msg.isCheckIn ? 'checkin-message' : ''}`}
-              >
+              <div key={idx} className={`message ${msg.role} ${msg.interim ? 'interim' : ''} ${msg.isIntro ? 'intro-message' : ''}`}>
                 <div className="message-content">
                   {msg.interim && <span className="voice-badge"><i className="fas fa-microphone"></i> listening...</span>}
-                  {msg.isReminder && <span className="reminder-badge"><i className="fas fa-bell"></i> Reminder</span>}
-                  {msg.isCheckIn && <span className="checkin-badge"><i className="fas fa-question-circle"></i> Check-in</span>}
                   {msg.content}
                 </div>
                 <div className="message-time">
-                  {msg.timestamp?.toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+                  {msg.timestamp?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             ))}
@@ -959,53 +974,54 @@ export default function AdvancedBuddy({
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Quick Action Buttons */}
+          {quickActions.length > 0 && !isProcessing && (
+            <div className="quick-actions-bar">
+              {quickActions.map((qa, idx) => (
+                <button
+                  key={idx}
+                  className={`quick-action-btn ${qa.action === 'dismiss' ? 'dismiss' : ''}`}
+                  onClick={() => handleQuickAction(qa.action)}
+                >
+                  {qa.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="buddy-input-area">
             {voiceMode !== "chat" && (
               <div className="voice-mode-hint">
                 <strong>
-                  <i className={voiceMode === "notes" ? "fas fa-sticky-note" : "fas fa-tasks"} style={{marginRight: '6px'}}></i>
-                  {voiceMode === "notes" 
-                    ? (language === "hindi" ? "डेली नोट्स में लिख रहे हैं" : language === "english" ? "Writing to Daily Notes" : "Daily Notes mein likh rahe hain")
-                    : (language === "hindi" ? "टास्क मैनेज कर रहे हैं" : language === "english" ? "Managing Tasks" : "Tasks manage kar rahe hain")
-                  }
-                </strong>
-                <span>
+                  <i className={voiceMode === "notes" ? "fas fa-sticky-note" : "fas fa-tasks"} style={{ marginRight: '6px' }}></i>
                   {voiceMode === "notes"
-                    ? (language === "hindi" ? "आपके शब्द सीधे नोट्स में जाएंगे" : language === "english" ? "Your words will go directly to notes" : "Aapke words directly notes mein jayenge")
-                    : (language === "hindi" ? "टास्क जोड़ें, हटाएं या पूरा करें" : language === "english" ? "Add, delete, or complete tasks" : "Tasks add karo, delete karo ya complete karo")
-                  }
-                </span>
+                    ? (language === "english" ? "Writing to Daily Notes" : "Daily Notes mein likh rahe hain")
+                    : (language === "english" ? "Managing Tasks" : "Tasks manage kar rahe hain")}
+                </strong>
               </div>
             )}
 
-            {/* Input Mode Toggle */}
             <div className="input-mode-toggle">
-              <button
-                className={inputMode === "text" ? "active" : ""}
-                onClick={() => {
-                  setInputMode("text");
-                  if (isListening) recognitionRef.current?.stop();
-                }}
-              >
+              <button className={inputMode === "text" ? "active" : ""} onClick={() => { setInputMode("text"); if (isListening) recognitionRef.current?.stop(); }}>
                 <i className="fas fa-keyboard"></i> {language === "hindi" ? "टाइप" : "Type"}
               </button>
-              <button
-                className={inputMode === "voice" ? "active" : ""}
-                onClick={() => setInputMode("voice")}
-              >
+              <button className={inputMode === "voice" ? "active" : ""} onClick={() => setInputMode("voice")}>
                 <i className="fas fa-microphone"></i> {language === "hindi" ? "बोलें" : "Voice"}
               </button>
             </div>
 
-            {/* Text Input Form */}
             {inputMode === "text" && (
               <form className="text-input-form" onSubmit={handleTextSubmit}>
                 <input
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder={getInputPlaceholder()}
+                  placeholder={
+                    activeFlow
+                      ? (language === "english" ? "Type your answer..." : "Apna jawab type karo...")
+                      : (language === "english" ? "Ask me anything..." : language === "hindi" ? "यहां टाइप करें..." : "Yahan type karo...")
+                  }
                   disabled={isProcessing}
                 />
                 <button type="submit" disabled={isProcessing || !inputText.trim()}>
@@ -1014,33 +1030,21 @@ export default function AdvancedBuddy({
               </form>
             )}
 
-            {/* Voice Input Control */}
             {inputMode === "voice" && (
               <div className="voice-input-control">
-                <button
-                  className={`voice-btn ${isListening ? 'active' : ''}`}
-                  onClick={toggleVoiceInput}
-                  disabled={isProcessing}
-                >
+                <button className={`voice-btn ${isListening ? 'active' : ''}`} onClick={toggleVoiceInput} disabled={isProcessing}>
                   {isListening ? (
-                    <>
-                      <div className="pulse-ring"></div>
-                      <i className="fas fa-stop-circle"></i> {language === "hindi" ? "बंद करें" : language === "english" ? "Stop" : "Band Karo"}
-                    </>
+                    <><div className="pulse-ring"></div><i className="fas fa-stop-circle"></i> {language === "english" ? "Stop" : "Band Karo"}</>
                   ) : (
-                    <>
-                      <i className="fas fa-microphone"></i> {language === "hindi" ? "बोलना शुरू करें" : language === "english" ? "Start Speaking" : "Bolna Shuru Karo"}
-                    </>
+                    <><i className="fas fa-microphone"></i> {language === "english" ? "Start Speaking" : "Bolna Shuru Karo"}</>
                   )}
                 </button>
-                
-                {/* Manual text input while in voice mode */}
                 <form className="text-input-form" onSubmit={handleTextSubmit}>
                   <input
                     type="text"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder={language === "hindi" ? "या यहां टाइप करें..." : language === "english" ? "Or type here..." : "Ya yahan type karo..."}
+                    placeholder={language === "english" ? "Or type here..." : "Ya yahan type karo..."}
                     disabled={isProcessing}
                   />
                   <button type="submit" disabled={isProcessing || !inputText.trim()}>
