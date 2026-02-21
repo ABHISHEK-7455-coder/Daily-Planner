@@ -1,41 +1,82 @@
-import React from "react";
-import { useEffect, useState, useImperativeHandle, forwardRef, useRef } from "react";
+import React, {
+    useEffect,
+    useState,
+    useImperativeHandle,
+    forwardRef,
+    useRef
+} from "react";
 import "./DailyNotes.css";
 
 const getDateKey = (date) => date.toISOString().slice(0, 10);
 
 const DailyNotes = forwardRef(({ currentDate }, ref) => {
     const dayKey = getDateKey(currentDate);
-    const [note, setNote] = useState("");
 
-    /* 🎯 DRAGGABLE STATE */
-    const [position, setPosition] = useState({ x: null, y: null });
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-    const noteRef = useRef(null);
+    const [note, setNote] = useState("");
+    const [isOpen, setIsOpen] = useState(false);
+
+    /* ---------- POSITIONS ---------- */
+    const [btnPos, setBtnPos] = useState(null);
+    const [panelPos, setPanelPos] = useState(null);
+
     const textareaRef = useRef(null);
 
-    /* 🔹 LOAD NOTE ON DATE CHANGE */
+    /* ---------- DRAG ENGINE (FIXED SMOOTH) ---------- */
+    const dragRef = useRef({
+        dragging: false,
+        offsetX: 0,
+        offsetY: 0,
+        width: 0,
+        height: 0,
+    });
+
+    const startDrag = (e, setPosition) => {
+        e.preventDefault();
+
+        const rect = e.currentTarget.getBoundingClientRect();
+
+        dragRef.current = {
+            dragging: true,
+            offsetX: e.clientX - rect.left,
+            offsetY: e.clientY - rect.top,
+            width: rect.width,
+            height: rect.height,
+        };
+
+        const onMove = (ev) => {
+            if (!dragRef.current.dragging) return;
+
+            let newX = ev.clientX - dragRef.current.offsetX;
+            let newY = ev.clientY - dragRef.current.offsetY;
+
+            /* keep inside viewport */
+            const maxX = window.innerWidth - dragRef.current.width;
+            const maxY = window.innerHeight - dragRef.current.height;
+
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+
+            setPosition({ x: newX, y: newY });
+        };
+
+        const onUp = () => {
+            dragRef.current.dragging = false;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    };
+
+    /* ---------- LOAD NOTE ---------- */
     useEffect(() => {
         const raw = localStorage.getItem("daily-notes");
         const allNotes = raw ? JSON.parse(raw) : {};
         setNote(allNotes[dayKey] || "");
     }, [dayKey]);
 
-    /* 🔹 LOAD POSITION FROM LOCALSTORAGE */
-    useEffect(() => {
-        const savedPos = localStorage.getItem("daily-notes-position");
-        if (savedPos) {
-            try {
-                const pos = JSON.parse(savedPos);
-                setPosition(pos);
-            } catch (e) {
-                console.error("Failed to parse position:", e);
-            }
-        }
-    }, []);
-
-    /* 🔹 SAVE NOTE ONLY WHEN USER LEAVES TEXTAREA */
+    /* ---------- SAVE NOTE ---------- */
     const saveNote = () => {
         const raw = localStorage.getItem("daily-notes");
         const allNotes = raw ? JSON.parse(raw) : {};
@@ -43,30 +84,29 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
         localStorage.setItem("daily-notes", JSON.stringify(allNotes));
     };
 
-    // ═══════════════════════════════════════════════════════════
-    // VOICE UPDATE METHOD - Called by Advanced Buddy
-    // ═══════════════════════════════════════════════════════════
-    const updateFromVoice = (content, mode = 'append') => {
-        console.log("🎤 DailyNotes: updateFromVoice called");
-        console.log("🎤 Content:", content);
-
+    /* ---------- VOICE SUPPORT ---------- */
+    const updateFromVoice = (content, mode = "append") => {
         const raw = localStorage.getItem("daily-notes");
         const allNotes = raw ? JSON.parse(raw) : {};
 
-        if (mode === 'append') {
-            const existingNote = allNotes[dayKey] || "";
-            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const newNote = existingNote
-                ? `${existingNote}\n\n[${timestamp}] ${content}`
-                : `[${timestamp}] ${content}`;
-            allNotes[dayKey] = newNote;
-            setNote(newNote);
-            
-            // 🎯 AUTO-SCROLL TO BOTTOM
+        if (mode === "append") {
+            const existing = allNotes[dayKey] || "";
+            const time = new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+
+            const updated = existing
+                ? `${existing}\n\n[${time}] ${content}`
+                : `[${time}] ${content}`;
+
+            allNotes[dayKey] = updated;
+            setNote(updated);
+
             setTimeout(() => {
                 if (textareaRef.current) {
-                    textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
-                    console.log("✅ Scrolled to bottom");
+                    textareaRef.current.scrollTop =
+                        textareaRef.current.scrollHeight;
                 }
             }, 100);
         } else {
@@ -75,89 +115,62 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
         }
 
         localStorage.setItem("daily-notes", JSON.stringify(allNotes));
-        console.log("✅ Note updated and saved");
     };
 
-    /* 🎯 DRAG HANDLERS */
-    const handleMouseDown = (e) => {
-        if (e.target.tagName === 'TEXTAREA') {
-            return;
-        }
-        setIsDragging(true);
-        const rect = noteRef.current.getBoundingClientRect();
-        setDragOffset({
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        });
-        e.preventDefault();
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging || !noteRef.current) return;
-        const newX = e.clientX - dragOffset.x;
-        const newY = e.clientY - dragOffset.y;
-        const maxX = window.innerWidth - noteRef.current.offsetWidth;
-        const maxY = window.innerHeight - noteRef.current.offsetHeight;
-        const boundedX = Math.max(0, Math.min(newX, maxX));
-        const boundedY = Math.max(0, Math.min(newY, maxY));
-        setPosition({ x: boundedX, y: boundedY });
-    };
-
-    const handleMouseUp = () => {
-        if (isDragging) {
-            setIsDragging(false);
-            if (position.x !== null && position.y !== null) {
-                localStorage.setItem("daily-notes-position", JSON.stringify(position));
-            }
-        }
-    };
-
-    useEffect(() => {
-        if (isDragging) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-            return () => {
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-            };
-        }
-    }, [isDragging, dragOffset, position]);
-
-    const positionStyle = position.x !== null && position.y !== null
-        ? {
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            right: 'auto',
-            bottom: 'auto'
-        }
-        : {};
-
-    // Expose method to parent via ref
     useImperativeHandle(ref, () => ({
         updateFromVoice
     }));
 
-    return (
-        <aside
-            ref={noteRef}
-            className={`daily-journal ${isDragging ? 'dragging' : ''}`}
-            style={positionStyle}
-            onMouseDown={handleMouseDown}
-        >
-            <h3>📝 Daily Notes <span className="drag-hint">✋</span></h3>
+    /* ---------- STYLE HELPER ---------- */
+    const styleFromPos = (pos, fallback) =>
+        pos
+            ? { position: "fixed", left: pos.x, top: pos.y }
+            : fallback;
 
-            <textarea
-                ref={textareaRef}
-                value={note}
-                placeholder="Write freely about your day... or dictate using your AI Buddy! 🎤"
-                onChange={(e) => setNote(e.target.value)}
-                onBlur={saveNote}
-            />
-        </aside>
+    return (
+        <>
+            {/* 🔘 FLOATING BUTTON */}
+            <button
+                className="daily-notes-fab"
+                style={styleFromPos(btnPos, { bottom: 24, right: 24 })}
+                onMouseDown={(e) => startDrag(e, setBtnPos)}
+                onClick={() => setIsOpen((p) => !p)}
+            >
+                📝
+            </button>
+
+            {/* 📒 PANEL */}
+            {isOpen && (
+                <aside
+                    className="daily-journal"
+                    style={styleFromPos(panelPos, { bottom: 90, right: 24 })}
+                    onMouseDown={(e) => {
+                        if (e.target.tagName === "TEXTAREA") return;
+                        startDrag(e, setPanelPos);
+                    }}
+                >
+                    <div className="notes-header">
+                        <h3>Daily Notes</h3>
+                        <button
+                            className="close-btn"
+                            onClick={() => setIsOpen(false)}
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <textarea
+                        ref={textareaRef}
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        onBlur={saveNote}
+                        placeholder="Write freely... or dictate 🎤"
+                    />
+                </aside>
+            )}
+        </>
     );
 });
 
-DailyNotes.displayName = 'DailyNotes';
-
+DailyNotes.displayName = "DailyNotes";
 export default DailyNotes;

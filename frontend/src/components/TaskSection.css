@@ -3,6 +3,24 @@
 .task-section {
     margin-bottom: 32px;
 }
+/* Drop feedback */
+.task-section.drag-over {
+    background: #f4f7ff;
+    transform: scale(1.01);
+    transition: all 0.15s ease;
+}
+
+/* Draggable task wrapper */
+.draggable-wrapper {
+    cursor: grab;
+}
+
+.draggable-wrapper:active {
+    cursor: grabbing;
+    opacity: 0.6;
+    transform: scale(0.98);
+}
+
 
 .task-section-title {
     display: flex;

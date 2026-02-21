@@ -7,28 +7,40 @@ function alarmReducer(state, action) {
     switch (action.type) {
         case "LOAD":
             return action.payload;
+
         case "ADD":
+            if (state.length >= 4) return state;
             return [...state, action.payload];
+
+        case "UPDATE":
+            return state.map(a =>
+                a.id === action.payload.id ? { ...a, ...action.payload.data } : a
+            );
+
         case "TOGGLE":
             return state.map(a =>
                 a.id === action.payload ? { ...a, isActive: !a.isActive } : a
             );
+
         case "SNOOZE":
             return state.map(a =>
                 a.id === action.payload.id
                     ? { ...a, snoozedUntil: action.payload.until }
                     : a
             );
+
         case "TRIGGER":
             return state.map(a =>
                 a.id === action.payload
                     ? { ...a, lastTriggered: Date.now(), snoozedUntil: null }
                     : a
             );
+
         case "STOP":
             return state.map(a =>
                 a.id === action.payload ? { ...a, isActive: false } : a
             );
+
         default:
             return state;
     }
@@ -36,7 +48,6 @@ function alarmReducer(state, action) {
 
 /* ===================== UTILS ===================== */
 
-// 12h → 24h
 function to24Hour(hour, minute, period) {
     let h = Number(hour);
     if (period === "PM" && h !== 12) h += 12;
@@ -55,8 +66,7 @@ function checkAlarm(alarm, now) {
     const todayStr = now.toISOString().slice(0, 10);
 
     if (alarm.repeat === "once") {
-        // ← FIX: must have a date, and it must match today
-        if (!alarm.date) return false;   // was `return true` — that caused it to fire every day!
+        if (!alarm.date) return false;
         return alarm.date === todayStr;
     }
     if (alarm.repeat === "daily") return true;
@@ -69,78 +79,64 @@ function checkAlarm(alarm, now) {
 
 const AlarmPlanner = forwardRef((props, ref) => {
     const getTodayDate = () => new Date().toISOString().split("T")[0];
-    const [alarms, dispatch] = useReducer(alarmReducer, []);
-    const [activeAlarm, setActiveAlarm] = useState(null);
-    const [audioEnabled, setAudioEnabled] = useState(false);
-    const audioRef = useRef(null);
 
-   
-        const [form, setForm] = useState({
-            hour: "1",
-            minute: "00",
-            period: "AM",
-            date: getTodayDate(),   // ← FIX: always starts as today
-            label: "",
-            repeat: "once"
-        });
-
-    // 🎯 EXPOSE METHOD FOR BUDDY INTEGRATION
-    useImperativeHandle(ref, () => ({
-        addAlarmFromBuddy: (alarmData) => {
-            console.log("⏰ AlarmPlanner received:", alarmData);
-            
-            try {
-                const time24 = to24Hour(alarmData.hour, alarmData.minute, alarmData.period);
-                const displayTime = `${alarmData.hour}:${alarmData.minute} ${alarmData.period}`;
-
-                const newAlarm = {
-                    id: Date.now(),
-                    time24,
-                    displayTime,
-                    date: alarmData.date || "",
-                    label: alarmData.label || "Alarm",
-                    repeat: alarmData.repeat || "once",
-                    repeatDays: [1, 2, 3, 4, 5],
-                    isActive: true,
-                    snoozeMinutes: 5,
-                    autoStopMinutes: 1,
-                    lastTriggered: null,
-                    snoozedUntil: null
-                };
-
-                dispatch({ type: "ADD", payload: newAlarm });
-                console.log("✅ Alarm added:", displayTime);
-                
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification("⏰ Alarm Set!", {
-                        body: `${alarmData.label || 'Alarm'} at ${displayTime}`,
-                        icon: "/icon-192x192.png"
-                    });
-                }
-                
-                return true;
-            } catch (error) {
-                console.error("❌ Add alarm error:", error);
-                return false;
-            }
+    const [alarms, dispatch] = useReducer(
+    alarmReducer,
+    [],
+    () => {
+        try {
+            const saved = localStorage.getItem("alarms");
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
         }
-    }));
-
-    function enableSound() {
-        if (!audioRef.current) return;
-        audioRef.current.volume = 1;
-        audioRef.current.play().then(() => {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-            setAudioEnabled(true);
-        });
     }
+);
 
+    const [activeAlarm, setActiveAlarm] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+
+    const audioRef = useRef(null);
+    const audioUnlockedRef = useRef(false); // ✅ browser autoplay fix
+
+    const [form, setForm] = useState({
+        hour: "1",
+        minute: "00",
+        period: "AM",
+        date: getTodayDate(),
+        label: "",
+        repeat: "once"
+    });
+
+
+/* ===================== SAVE TO LOCAL STORAGE ===================== */
+
+useEffect(() => {
+    localStorage.setItem("alarms", JSON.stringify(alarms));
+}, [alarms]);
+
+    /* ===================== AUTO UNLOCK AUDIO ===================== */
+
+    const unlockAudio = () => {
+        if (audioUnlockedRef.current || !audioRef.current) return;
+
+        audioRef.current.volume = 1;
+        audioRef.current.play()
+            .then(() => {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                audioUnlockedRef.current = true;
+            })
+            .catch(() => { });
+    };
+
+    // first user interaction unlocks audio
     useEffect(() => {
-        if ("Notification" in window) {
-            Notification.requestPermission();
-        }
+        window.addEventListener("click", unlockAudio);
+        return () => window.removeEventListener("click", unlockAudio);
     }, []);
+
+    /* ===================== LOAD ===================== */
 
     useEffect(() => {
         const saved = JSON.parse(localStorage.getItem("alarms")) || [];
@@ -151,6 +147,8 @@ const AlarmPlanner = forwardRef((props, ref) => {
         localStorage.setItem("alarms", JSON.stringify(alarms));
     }, [alarms]);
 
+    /* ===================== CHECK ALARM ===================== */
+
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date();
@@ -160,51 +158,80 @@ const AlarmPlanner = forwardRef((props, ref) => {
                     dispatch({ type: "TRIGGER", payload: alarm.id });
                     setActiveAlarm(alarm);
 
-                    if (audioEnabled && audioRef.current) {
+                    // ✅ direct sound play
+                    if (audioRef.current) {
                         audioRef.current.currentTime = 0;
                         audioRef.current.loop = true;
-                        audioRef.current.play();
+                        audioRef.current.play().catch(() => { });
                     }
 
-                    if (Notification.permission === "granted") {
-                        new Notification("⏰ Alarm", {
-                            body: alarm.label || "Time ho gaya 🔔"
-                        });
-                    }
-
-                    setTimeout(() => {
-                        stopAlarm(alarm.id);
-                    }, alarm.autoStopMinutes * 60000);
+                    setTimeout(() => stopAlarm(alarm.id), alarm.autoStopMinutes * 60000);
                 }
             });
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [alarms, audioEnabled]);
+    }, [alarms]);
+
+    /* ===================== ACTIONS ===================== */
 
     function addAlarm() {
+        unlockAudio();
+
+        if (!editingId && alarms.length >= 4) {
+            alert("Only 4 alarms allowed");
+            return;
+        }
+
         const time24 = to24Hour(form.hour, form.minute, form.period);
         const displayTime = `${form.hour}:${form.minute} ${form.period}`;
 
-        dispatch({
-            type: "ADD",
-            payload: {
-                id: Date.now(),
-                time24,
-                displayTime,
-                date: form.date,
-                label: form.label,
-                repeat: form.repeat,
-                repeatDays: [1, 2, 3, 4, 5],
-                isActive: true,
-                snoozeMinutes: 5,
-                autoStopMinutes: 1,
-                lastTriggered: null,
-                snoozedUntil: null
-            }
-        });
+        const payload = {
+            time24,
+            displayTime,
+            date: form.date,
+            label: form.label,
+            repeat: form.repeat
+        };
+
+        if (editingId) {
+            dispatch({ type: "UPDATE", payload: { id: editingId, data: payload } });
+            setEditingId(null);
+        } else {
+            dispatch({
+                type: "ADD",
+                payload: {
+                    id: Date.now(),
+                    ...payload,
+                    repeatDays: [1, 2, 3, 4, 5],
+                    isActive: true,
+                    snoozeMinutes: 5,
+                    autoStopMinutes: 1,
+                    lastTriggered: null,
+                    snoozedUntil: null
+                }
+            });
+        }
 
         setForm({ ...form, label: "" });
+    }
+
+    function startEdit(alarm) {
+        unlockAudio();
+
+        const [time, period] = alarm.displayTime.split(" ");
+        const [hour, minute] = time.split(":");
+
+        setForm({
+            hour,
+            minute,
+            period,
+            date: alarm.date,
+            label: alarm.label,
+            repeat: alarm.repeat
+        });
+
+        setEditingId(alarm.id);
     }
 
     function snoozeAlarm() {
@@ -215,6 +242,7 @@ const AlarmPlanner = forwardRef((props, ref) => {
                 until: Date.now() + activeAlarm.snoozeMinutes * 60000
             }
         });
+
         stopAudio();
         setActiveAlarm(null);
     }
@@ -231,37 +259,25 @@ const AlarmPlanner = forwardRef((props, ref) => {
         audioRef.current.currentTime = 0;
     }
 
+    /* ===================== UI ===================== */
+
     return (
         <div className={`planner ${activeAlarm ? "ringing" : ""}`}>
-            <h2>
-                <i className="fas fa-alarm-clock" style={{color: '#6c5ce7'}}></i>
-                Alarm Planner
-            </h2>
-
-            {!audioEnabled && (
-                <button className="enable-sound" onClick={enableSound}>
-                    <i className="fas fa-volume-up"></i> Enable Alarm Sound
-                </button>
-            )}
+            <h2>Alarm Planner</h2>
 
             <div className="form">
                 <div className="time-row">
-                    <select value={form.hour}
-                        onChange={e => setForm({ ...form, hour: e.target.value })}>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(h =>
-                            <option key={h}>{h}</option>
-                        )}
+                    <select value={form.hour} onChange={e => setForm({ ...form, hour: e.target.value })}>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(h => <option key={h}>{h}</option>)}
                     </select>
 
-                    <select value={form.minute}
-                        onChange={e => setForm({ ...form, minute: e.target.value })}>
+                    <select value={form.minute} onChange={e => setForm({ ...form, minute: e.target.value })}>
                         {Array.from({ length: 60 }, (_, i) => i).map(m =>
                             <option key={m}>{String(m).padStart(2, "0")}</option>
                         )}
                     </select>
 
-                    <select value={form.period}
-                        onChange={e => setForm({ ...form, period: e.target.value })}>
+                    <select value={form.period} onChange={e => setForm({ ...form, period: e.target.value })}>
                         <option>AM</option>
                         <option>PM</option>
                     </select>
@@ -271,15 +287,12 @@ const AlarmPlanner = forwardRef((props, ref) => {
                     value={form.date}
                     onChange={e => setForm({ ...form, date: e.target.value })} />
 
-                <div className="input-group">
-                    <i className="fas fa-tag"></i>
-                    <input
-                        type="text"
-                        placeholder="Task / Label"
-                        value={form.label}
-                        onChange={e => setForm({ ...form, label: e.target.value })}
-                    />
-                </div>
+                <input
+                    type="text"
+                    placeholder="Task / Label"
+                    value={form.label}
+                    onChange={e => setForm({ ...form, label: e.target.value })}
+                />
 
                 <select value={form.repeat}
                     onChange={e => setForm({ ...form, repeat: e.target.value })}>
@@ -289,28 +302,26 @@ const AlarmPlanner = forwardRef((props, ref) => {
                 </select>
 
                 <button onClick={addAlarm}>
-                    <i className="fas fa-plus-circle"></i> Add Alarm
+                    {editingId ? "Update Alarm" : "Add Alarm"}
                 </button>
+
+                <p style={{ fontSize: "12px" }}>{alarms.length}/4 alarms used</p>
             </div>
 
             <ul className="list">
                 {alarms.map(a => (
-                    <li key={a.id}>
+                    <li key={a.id} onClick={() => startEdit(a)} style={{ cursor: "pointer" }}>
                         <span>
-                            <i className="fas fa-bell" style={{color: a.isActive ? '#6c5ce7' : '#b2bec3'}}></i>
-                            <strong>{a.displayTime}</strong> 
-                            {a.label && <span style={{color: '#636e72'}}>— {a.label}</span>}
+                            <strong>{a.displayTime}</strong>
+                            {a.label && <> — {a.label}</>}
                         </span>
-                        <button onClick={() => dispatch({ type: "TOGGLE", payload: a.id })}>
-                            {a.isActive ? (
-                                <>
-                                    <i className="fas fa-toggle-on"></i> ON
-                                </>
-                            ) : (
-                                <>
-                                    <i className="fas fa-toggle-off"></i> OFF
-                                </>
-                            )}
+
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch({ type: "TOGGLE", payload: a.id });
+                            }}>
+                            {a.isActive ? "ON" : "OFF"}
                         </button>
                     </li>
                 ))}
@@ -319,33 +330,22 @@ const AlarmPlanner = forwardRef((props, ref) => {
             {activeAlarm && (
                 <div className="overlay">
                     <div className="alarm-modal shake">
-                        <h1>
-                            <i className="fas fa-bell-on" style={{marginRight: '12px'}}></i>
-                            WAKE UP!
-                        </h1>
+                        <h1>WAKE UP!</h1>
                         <p className="time">{activeAlarm.displayTime}</p>
-                        <p className="label">
-                            <i className="fas fa-sticky-note" style={{marginRight: '8px', color: '#6c5ce7'}}></i>
-                            {activeAlarm.label || "Time to wake up!"}
-                        </p>
+                        <p className="label">{activeAlarm.label || "Time to wake up!"}</p>
 
                         <div className="actions">
-                            <button onClick={snoozeAlarm}>
-                                <i className="fas fa-snooze"></i> Snooze
-                            </button>
-                            <button onClick={() => stopAlarm(activeAlarm.id)}>
-                                <i className="fas fa-stop-circle"></i> Stop
-                            </button>
+                            <button onClick={snoozeAlarm}>Snooze</button>
+                            <button onClick={() => stopAlarm(activeAlarm.id)}>Stop</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <audio ref={audioRef} src="/alarm.mp3" preload="auto" loop />
+            <audio ref={audioRef} src="/alarm.mp3" preload="auto" />
         </div>
     );
 });
 
 AlarmPlanner.displayName = "AlarmPlanner";
-
 export default AlarmPlanner;

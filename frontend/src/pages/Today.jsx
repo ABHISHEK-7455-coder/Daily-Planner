@@ -1,3 +1,19 @@
+// ─────────────────────────────────────────────────────────────
+// CHANGES FROM ORIGINAL:
+//
+// handleAddTaskForDate(title, timeOfDay, startTime, endTime, date)
+//   → New helper that saves a task to ANY date's localStorage key
+//   → If date === today (dayKey), calls the normal addTask() so
+//     the React state updates instantly.
+//   → If date !== today (e.g. tomorrow), writes directly into
+//     localStorage["days-data"][date] so it persists for that day.
+//
+// handleAction in AdvancedBuddy's onAddTask prop now receives
+//   the `date` field and routes through handleAddTaskForDate.
+//
+// All other logic is unchanged.
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
@@ -62,6 +78,10 @@ export default function Today() {
   const parsedDate = date ? new Date(date) : new Date();
   const [currentDate, setCurrentDate] = useState(parsedDate);
   const dayKey = formatKey(currentDate);
+
+  // ─── Today's real date (for "tomorrow" routing) ──────────
+  const todayKey = formatKey(new Date());
+  const tomorrowKey = formatKey(addDays(new Date(), 1));
 
   const [tasks, setTasks] = useState([]);
   const [reflection, setReflection] = useState(null);
@@ -221,6 +241,43 @@ export default function Today() {
     ]);
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // 🆕  handleAddTaskForDate — routes task to correct date
+  //     Called by the buddy's handleAction when action.type === "add_task"
+  // ─────────────────────────────────────────────────────────────
+  const handleAddTaskForDate = (title, timeOfDay, startTime, endTime, targetDate) => {
+    const resolvedDate = targetDate || dayKey; // fallback to current view
+
+    if (resolvedDate === dayKey) {
+      // ✅ Task belongs to the currently viewed day — update React state normally
+      addTask(title, timeOfDay, startTime || null, endTime || null);
+      return;
+    }
+
+    // ✅ Task belongs to a different day (e.g. tomorrow) — write to localStorage directly
+    const allDays = JSON.parse(localStorage.getItem("days-data")) || {};
+    const targetDayData = allDays[resolvedDate] || { date: resolvedDate, tasks: [], reflection: null };
+
+    const newTask = {
+      id: Date.now() + Math.random(), // avoid id collision
+      title,
+      completed: false,
+      timeOfDay,
+      startTime: startTime || null,
+      endTime: endTime || null,
+      status: "idle",
+      startedAt: null,
+      completedAt: null,
+      actualTime: null,
+    };
+
+    targetDayData.tasks = [newTask, ...(targetDayData.tasks || [])];
+    allDays[resolvedDate] = targetDayData;
+    localStorage.setItem("days-data", JSON.stringify(allDays));
+
+    console.log(`✅ Task "${title}" saved to ${resolvedDate} (not current view: ${dayKey})`);
+  };
+
   const startTask = (id) => {
     setTasks((prev) =>
       prev.map((t) =>
@@ -277,6 +334,16 @@ export default function Today() {
   const editTask = (id, text) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, title: text } : t))
+    );
+  };
+
+  const editTaskTime = (id, startTime, endTime) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, startTime, endTime }
+          : t
+      )
     );
   };
 
@@ -346,74 +413,52 @@ export default function Today() {
     if (load < 10) return "busy";
     return "overloaded";
   };
-// 🎯 BULLETPROOF: Handle notes update from buddy
-const handleUpdateNotes = (content, mode = 'append') => {
-  console.log("═════════════════════════════════════════");
-  console.log("📝 Today.jsx: handleUpdateNotes called");
-  console.log("📝 Content:", content);
-  console.log("📝 Content length:", content.length);
-  console.log("📝 Mode:", mode);
-  console.log("📝 Current dayKey:", dayKey);
-  console.log("📝 dailyNotesRef:", dailyNotesRef);
-  console.log("📝 dailyNotesRef.current:", dailyNotesRef.current);
-  console.log("📝 dailyNotesRef.current.updateFromVoice:", dailyNotesRef.current?.updateFromVoice);
-  console.log("═════════════════════════════════════════");
-  
-  // METHOD 1: Use ref (preferred)
-  if (dailyNotesRef.current && dailyNotesRef.current.updateFromVoice) {
-    console.log("✅ METHOD 1: Calling updateFromVoice on ref");
+
+  // 🎯 BULLETPROOF: Handle notes update from buddy
+  const handleUpdateNotes = (content, mode = 'append') => {
+    console.log("═════════════════════════════════════════");
+    console.log("📝 Today.jsx: handleUpdateNotes called");
+    console.log("📝 Content:", content);
+    console.log("📝 Mode:", mode);
+    
+    if (dailyNotesRef.current && dailyNotesRef.current.updateFromVoice) {
+      console.log("✅ METHOD 1: Calling updateFromVoice on ref");
+      try {
+        dailyNotesRef.current.updateFromVoice(content, mode);
+        return;
+      } catch (error) {
+        console.error("❌ Error updating notes via ref:", error);
+      }
+    }
+    
+    // Fallback: direct localStorage
     try {
-      dailyNotesRef.current.updateFromVoice(content, mode);
-      console.log("✅ Notes updated successfully via ref");
-      return; // Success!
+      const raw = localStorage.getItem("daily-notes");
+      const allNotes = raw ? JSON.parse(raw) : {};
+      
+      if (mode === 'append') {
+        const existingNote = allNotes[dayKey] || "";
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const newNote = existingNote
+          ? `${existingNote}\n\n[${timestamp}] ${content}`
+          : `[${timestamp}] ${content}`;
+        allNotes[dayKey] = newNote;
+      } else {
+        allNotes[dayKey] = content;
+      }
+      
+      localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+      window.dispatchEvent(new Event('notes-updated'));
+      localStorage.setItem('daily-notes-update-trigger', Date.now().toString());
     } catch (error) {
-      console.error("❌ Error updating notes via ref:", error);
-      console.log("⚠️ Falling back to METHOD 2");
+      console.error("❌ Notes fallback failed:", error);
     }
-  } else {
-    console.error("❌ Ref not available, using METHOD 2");
-  }
-  
-  // METHOD 2: Direct localStorage update + event dispatch (fallback)
-  console.log("🔄 METHOD 2: Direct localStorage update");
-  try {
-    const raw = localStorage.getItem("daily-notes");
-    const allNotes = raw ? JSON.parse(raw) : {};
-    
-    if (mode === 'append') {
-      const existingNote = allNotes[dayKey] || "";
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const newNote = existingNote
-        ? `${existingNote}\n\n[${timestamp}] ${content}`
-        : `[${timestamp}] ${content}`;
-      allNotes[dayKey] = newNote;
-      console.log("📝 New note length:", newNote.length);
-    } else {
-      allNotes[dayKey] = content;
-    }
-    
-    localStorage.setItem("daily-notes", JSON.stringify(allNotes));
-    console.log("✅ Saved to localStorage");
-    
-    // Trigger custom event to force DailyNotes to reload
-    window.dispatchEvent(new Event('notes-updated'));
-    console.log("📢 Dispatched notes-updated event");
-    
-    // Also update trigger key for storage event
-    localStorage.setItem('daily-notes-update-trigger', Date.now().toString());
-    console.log("🔔 Updated trigger key");
-    
-  } catch (error) {
-    console.error("❌ METHOD 2 failed:", error);
-    console.error("⚠️ NOTHING WORKED - Please refresh the page");
-  }
-};
+  };
 
   // 🎯 FIXED: Handle alarm from buddy
   const handleAddAlarm = (alarmParams) => {
     console.log("⏰ Today.jsx: Adding alarm", alarmParams);
     
-    // Convert 24-hour time to 12-hour for AlarmPlanner
     const { hour, minute, period } = to12Hour(alarmParams.time);
     
     const alarmData = {
@@ -447,18 +492,8 @@ const handleUpdateNotes = (content, mode = 'append') => {
        
       <PushNotifications />
 
-      {/* <Sidebar
-        tasks={tasks}
-        activeFilter={taskFilter}
-        onFilterChange={setTaskFilter}
-        onOpenReflection={() => setShowReflection(true)}
-        onOpenWeeklySummary={() => setShowWeekly(true)}
-      /> */}
-
       <main className="today-main">
         <div className={`today-header cognitive-${cognitiveState}`}>
-          {/* <h2>Tasks</h2> */}
-
           <div className="today-date-navigation">
             <button onClick={() => goToDay(-1)}>⬅</button>
             <span>{currentDate.toDateString()}</span>
@@ -478,44 +513,59 @@ const handleUpdateNotes = (content, mode = 'append') => {
 
         <AddTask onAdd={addTask} />
 
-        {viewMode === "planner" ? (
-          <div className="bucket-layout">
-            <div className="bucket-sidebar">
-              {["morning", "afternoon", "evening"].map((bucket) => (
-                <button
-                  key={bucket}
-                  className={`bucket-btn ${activeBucket === bucket ? "active" : ""}`}
-                  onClick={() => setActiveBucket(bucket)}
-                >
-                  {bucket === "morning" && "☀️ Morning"}
-                  {bucket === "afternoon" && "🌤 Afternoon"}
-                  {bucket === "evening" && "🌙 Evening"}
-                </button>
-              ))}
-            </div>
+       {viewMode === "planner" ? (
+                        <div className="bucket-columns">
+                            <TaskSection
+                                title="☀️ Morning"
+                                bucketKey="morning"
+                                tasks={getFilteredTasks("morning")}
+                                onToggle={toggleTask}
+                                onDelete={deleteTask}
+                                onEdit={editTask}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
+                                onStart={startTask}
+                                onEditTime={editTaskTime}
+                                selectedDate={dayKey}
+                            />
 
-            <div className="bucket-content">
-              <TaskSection
-                title={activeBucket.charAt(0).toUpperCase() + activeBucket.slice(1)}
-                tasks={getFilteredTasks(activeBucket)}
-                onToggle={toggleTask}
-                onDelete={deleteTask}
-                onEdit={editTask}
-                onMove={moveTask}
-                onSnooze={snoozeTask}
-                onStart={startTask}
-                selectedDate={dayKey}
-              />
-            </div>
-          </div>
-        ) : (
-          <DayCalendar
-            tasks={tasks}
-            onToggle={toggleTask}
-            onEdit={editTask}
-            onDelete={deleteTask}
-          />
-        )}
+                            <TaskSection
+                                title="🌤 Afternoon"
+                                bucketKey="afternoon"
+                                tasks={getFilteredTasks("afternoon")}
+                                onToggle={toggleTask}
+                                onDelete={deleteTask}
+                                onEdit={editTask}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
+                                onStart={startTask}
+                                onEditTime={editTaskTime}
+                                selectedDate={dayKey}
+                            />
+
+                            <TaskSection
+                                title="🌙 Evening"
+                                bucketKey="evening"
+                                tasks={getFilteredTasks("evening")}
+                                onToggle={toggleTask}
+                                onDelete={deleteTask}
+                                onEdit={editTask}
+                                onMove={moveTask}
+                                onSnooze={snoozeTask}
+                                onStart={startTask}
+                                onEditTime={editTaskTime}
+                                selectedDate={dayKey}
+                            />
+                        </div>
+
+                    ) : (
+                        <DayCalendar
+                            tasks={tasks}
+                            onToggle={toggleTask}
+                            onEdit={editTask}
+                            onDelete={deleteTask}
+                        />
+                    )}
       </main>
 
       {/* 🎯 FIXED: Add ref to DailyNotes */}
@@ -550,11 +600,11 @@ const handleUpdateNotes = (content, mode = 'append') => {
 
       {loadToast && <div className="cognitive-toast">{loadToast}</div>}
 
-      {/* 🎯 FIXED: Pass handlers to AdvancedBuddy */}
+      {/* 🎯 FIXED: Pass handleAddTaskForDate as onAddTask so buddy can target any date */}
       <AdvancedBuddy
         currentDate={dayKey}
         tasks={tasks}
-        onAddTask={addTask}
+        onAddTask={handleAddTaskForDate}
         onCompleteTask={toggleTask}
         onDeleteTask={deleteTask}
         onUpdateNotes={handleUpdateNotes}
