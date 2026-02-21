@@ -208,12 +208,38 @@ body {
 }
 
 /* 🪣 BUCKET LAYOUT */
+/* --- 3 BUCKET LAYOUT --- */
+
 .bucket-layout {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: var(--space-lg);
-    margin-top: var(--space-lg);
+    display: block;
+    height: 100%;
 }
+
+.bucket-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    height: 100%;
+    padding: 16px 0;
+}
+
+/* Each column */
+.bucket-columns>div {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+    overflow-y: auto;
+    max-height: calc(100vh - 260px);
+}
+
+/* Mobile responsive */
+@media (max-width: 900px) {
+    .bucket-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
 
 /* 🎨 BUCKET SIDEBAR (Desk Objects style) */
 .bucket-sidebar {
@@ -313,7 +339,7 @@ body {
     padding: var(--space-xl);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    min-height: 500px;
+    height: auto;
     position: relative;
     overflow: hidden;
 }

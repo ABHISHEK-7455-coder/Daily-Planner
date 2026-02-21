@@ -1,253 +1,193 @@
-/* 📝 DAILYNOTES.CSS - Cozy Desk Style (DRAGGABLE VERSION) */
-/* Matching the "Cozy Tip" card from the image */
+/* 📝 DAILY NOTES — Cozy Floating Widget (Drag Compatible) */
 
-.daily-journal {
+/* ---------- FLOATING BUTTON ---------- */
+.daily-notes-fab {
     position: fixed;
-    bottom: 32px;
-    right: 32px;
-    width: 340px;
-    background: linear-gradient(135deg, #fffaeb 0%, #fff4c9 100%);
-    padding: 28px;
-    border-radius: 24px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-    z-index: 100;
-    transform: rotate(-1deg);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 3px solid #fff9e6;
+    bottom: 48px;
+    right: 24px;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+    color: white;
+    font-size: 22px;
     cursor: grab;
-    user-select: none;
-}
-
-.daily-journal:hover {
-    transform: rotate(0deg) translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-}
-
-/* Dragging State */
-.daily-journal.dragging {
-    cursor: grabbing;
-    transform: rotate(0deg) scale(1.05);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
-    transition: none;
-    z-index: 1000;
-}
-
-/* Header */
-.daily-journal h3 {
-    font-family: 'Comfortaa', cursive;
-    font-size: 18px;
-    font-weight: 700;
-    color: #2d2d2d;
-    margin-bottom: 12px;
+    box-shadow: 0 0px 16px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    letter-spacing: -0.3px;
-    cursor: grab;
+    justify-content: center;
+    animation: gentleBounce 3s ease-in-out infinite;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.daily-journal.dragging h3 {
+.daily-notes-fab:hover {
+    transform: scale(1.08);
+}
+
+.daily-notes-fab:active {
+    cursor: grabbing;
+    transform: scale(1.02);
+}
+
+
+/* ---------- NOTES PANEL ---------- */
+.daily-journal {
+    position: fixed;
+    width: 360px;
+    height: 560px;
+    background: linear-gradient(135deg, #fffaeb 0%, #fff4c9 100%);
+    border-radius: 24px;
+    padding: 24px;
+    border: 3px solid #fff9e6;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    cursor: grab;
+    user-select: none;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    animation: float-in 0.35s ease;
+}
+
+.daily-journal:active {
     cursor: grabbing;
 }
 
-/* Hint Text */
-.daily-notes-hint {
-    font-size: 12px;
-    color: rgba(45, 45, 45, 0.6);
-    margin: 0 0 14px 0;
-    font-style: italic;
-    line-height: 1.5;
-    cursor: default;
-    user-select: none;
+/* subtle lift */
+.daily-journal:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
 }
 
-/* Drag Hint */
-.drag-hint {
-    font-size: 16px;
-    opacity: 0.4;
-    transition: opacity 0.2s ease;
+
+/* ---------- HEADER ---------- */
+.notes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+
+    font-family: 'Comfortaa', cursive;
+    font-size: 17px;
+    font-weight: 700;
+    color: #2d2d2d;
 }
 
-.daily-journal:hover .drag-hint {
-    opacity: 0.8;
-    animation: wave 1s ease-in-out infinite;
+/* Close button */
+.close-btn {
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
 }
 
-@keyframes wave {
-
-    0%,
-    100% {
-        transform: rotate(0deg);
-    }
-
-    25% {
-        transform: rotate(20deg);
-    }
-
-    75% {
-        transform: rotate(-20deg);
-    }
+.close-btn:hover {
+    background: rgba(0, 0, 0, 0.12);
 }
 
-/* Textarea */
+
+/* ---------- TEXTAREA ---------- */
 .daily-journal textarea {
     width: 100%;
-    min-height: 140px;
-    padding: 0;
+    height: calc(100% - 40px);
+
     border: none;
     background: transparent;
+
     font-family: 'DM Sans', sans-serif;
     font-size: 15px;
-    line-height: 1.7;
+    line-height: 1.6;
     color: #2d2d2d;
-    resize: vertical;
-    font-weight: 400;
+
+    resize: none;
+    outline: none;
+
     cursor: text;
     user-select: text;
 }
 
-.daily-journal textarea:focus {
-    outline: none;
-}
-
+/* Placeholder */
 .daily-journal textarea::placeholder {
-    color: rgba(45, 45, 45, 0.4);
+    color: rgba(45, 45, 45, 0.45);
     font-style: italic;
-    font-weight: 400;
 }
 
-/* Scrollbar for textarea */
+
+/* ---------- SCROLLBAR ---------- */
 .daily-journal textarea::-webkit-scrollbar {
     width: 6px;
 }
 
-.daily-journal textarea::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 10px;
-}
-
 .daily-journal textarea::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
 }
 
-.daily-journal textarea::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.25);
-}
 
-/* Decorative element */
+/* ---------- DECORATIVE SPARKLE ---------- */
 .daily-journal::before {
-    content: '✨';
+    content: "✨";
     position: absolute;
-    top: 16px;
-    right: 20px;
-    font-size: 20px;
-    opacity: 0.3;
-    animation: sparkle 3s ease-in-out infinite;
+    top: 14px;
+    right: 18px;
+    font-size: 18px;
+    opacity: 0.4;
     pointer-events: none;
+
+    animation: sparkle 3s ease-in-out infinite;
 }
 
 @keyframes sparkle {
 
     0%,
     100% {
-        opacity: 0.3;
         transform: scale(1);
+        opacity: 0.3;
     }
 
     50% {
-        opacity: 0.6;
         transform: scale(1.2);
+        opacity: 0.7;
     }
 }
 
-/* Visual feedback border when dragging */
-.daily-journal.dragging::after {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border: 2px dashed #ffc9d4;
-    border-radius: 28px;
-    pointer-events: none;
-    animation: dash 20s linear infinite;
-}
 
-@keyframes dash {
-    to {
-        stroke-dashoffset: -100;
-    }
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .daily-journal {
-        position: relative !important;
-        bottom: auto !important;
-        right: auto !important;
-        left: auto !important;
-        top: auto !important;
-        width: 100%;
-        margin-top: 24px;
-        transform: rotate(0deg);
-        cursor: default;
-    }
-
-    .daily-journal:hover {
-        transform: translateY(-2px);
-    }
-
-    .daily-journal h3 {
-        cursor: default;
-    }
-
-    .drag-hint {
-        display: none;
-    }
-
-    /* Disable dragging on mobile */
-    .daily-journal.dragging {
-        transform: rotate(0deg) scale(1);
-        cursor: default;
-    }
-}
-
-/* Tablet */
-@media (max-width: 1024px) and (min-width: 769px) {
-    .daily-journal {
-        width: 300px;
-        bottom: 24px;
-        right: 24px;
-    }
-}
-
-/* Animation on mount */
-.daily-journal {
-    animation: float-in 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+/* ---------- ENTRY ANIMATION ---------- */
 @keyframes float-in {
     from {
         opacity: 0;
-        transform: translateY(40px) rotate(-1deg);
+        transform: translateY(30px);
     }
 
     to {
         opacity: 1;
-        transform: translateY(0) rotate(-1deg);
+        transform: translateY(0);
     }
 }
 
-/* Prevent text selection while dragging */
-.daily-journal.dragging * {
-    user-select: none !important;
+
+/* ---------- IMPORTANT DRAG FIX ---------- */
+/* Prevent text selection during drag */
+.daily-journal,
+.daily-notes-fab {
+    -webkit-user-select: none;
+    user-select: none;
 }
 
-.daily-journal.dragging textarea {
-    pointer-events: none;
+/* allow typing */
+.daily-journal textarea {
+    user-select: text;
 }
 
-.daily-journal.dragging .daily-notes-hint {
-    pointer-events: none;
+
+/* ---------- MOBILE ---------- */
+@media (max-width: 768px) {
+    .daily-journal {
+        width: calc(100vw - 32px);
+        height: 60vh;
+    }
 }

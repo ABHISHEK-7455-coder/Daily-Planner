@@ -42,7 +42,7 @@ async function callGroq(messages, tools = null, smart = false, maxTokens = 600) 
     }
 }
 
-app.use(cors({ origin:process.env.FRONTEND_URL || "http://localhost:5173" , methods: ["GET", "POST"], allowedHeaders: ["Content-Type"] }));
+app.use(cors({ origin:"http://localhost:5173" || process.env.FRONTEND_URL , methods: ["GET", "POST"], allowedHeaders: ["Content-Type"] }));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
@@ -92,18 +92,26 @@ function buildSystemPrompt(language, taskContext) {
 LANGUAGE: ${getLangRule(language)}
 
 ${taskSnapshot}
-CURRENT TIME: ${currentTime} | TODAY: ${year}-${month}-${day} | TOMORROW: ${tomorrow}
+CURRENT TIME: ${currentTime} | TODAY: ${today} | TOMORROW: ${tomorrow}
 
 ══════════════════════════════════════════════
 GOLDEN RULE: IF USER ALREADY GAVE THE INFO — JUST DO IT. NO FOLLOW-UP QUESTIONS.
 ══════════════════════════════════════════════
 
 Examples of doing it RIGHT:
-✅ "add task market 9 to 11 am" → IMMEDIATELY call add_task("market jaana", "morning", "09:00", "11:00")
+✅ "add task market 9 to 11 am" → IMMEDIATELY call add_task("market jaana", "morning", "09:00", "11:00", date:"${today}")
+✅ "add task market tomorrow 9am" → IMMEDIATELY call add_task("market", "morning", "09:00", null, date:"${tomorrow}")
+✅ "kal gym karna hai 6am" → IMMEDIATELY call add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
 ✅ "set alarm 7am tomorrow" → IMMEDIATELY call set_alarm("07:00", "${tomorrow}", "Alarm", "once")
 ✅ "market ho gaya" → IMMEDIATELY call complete_task("market")
 ✅ "remind me in 5 min" → IMMEDIATELY call set_reminder(currentTime+5min, "reminder")
-✅ "9 to 11 PM market" → IMMEDIATELY call add_task("market", "evening", "21:00", "23:00")
+✅ "9 to 11 PM market" → IMMEDIATELY call add_task("market", "evening", "21:00", "23:00", date:"${today}")
+
+DATE RULES:
+- Default date for add_task is ALWAYS today: "${today}"
+- "tomorrow" / "kal" / "next day" → use date: "${tomorrow}"
+- "today" / "aaj" → use date: "${today}"
+- NEVER omit the date field — always include it
 
 Only ask a follow-up if critical info is GENUINELY missing:
 - "add task" with NO title → ask what task
@@ -173,16 +181,17 @@ const TOOLS = [
         type: "function",
         function: {
             name: "add_task",
-            description: "Add a task. Extract ALL info from user message — title, time, timeOfDay.",
+            description: "Add a task. Extract ALL info from user message — title, time, timeOfDay, and date. CRITICAL: if user says 'tomorrow' or 'kal', set date to tomorrow's date. Default date is today.",
             parameters: {
                 type: "object",
                 properties: {
                     title: { type: "string", description: "Task title" },
                     timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"], description: "Based on time: 5am-noon=morning, noon-5pm=afternoon, 5pm+=evening" },
                     startTime: { type: "string", description: "HH:MM 24h format if mentioned" },
-                    endTime: { type: "string", description: "HH:MM 24h if end time mentioned" }
+                    endTime: { type: "string", description: "HH:MM 24h if end time mentioned" },
+                    date: { type: "string", description: "YYYY-MM-DD. REQUIRED. Use today's date by default. Use tomorrow's date if user says 'tomorrow', 'kal', 'next day'." }
                 },
-                required: ["title", "timeOfDay"]
+                required: ["title", "timeOfDay", "date"]
             }
         }
     },
@@ -257,6 +266,10 @@ app.post("/api/advanced-chat", async (req, res) => {
                         if (!params.date) params.date = "";
                         if (!params.label) params.label = "Alarm";
                         if (!params.repeat) params.repeat = "once";
+                    }
+                    // Ensure add_task always has a date (fallback to today)
+                    if (toolCall.function.name === "add_task") {
+                        if (!params.date) params.date = getDateInfo().today;
                     }
                     actions.push({ type: toolCall.function.name, params });
                 } catch (e) { console.error("Parse error:", e); }
@@ -344,36 +357,49 @@ Write ONE short nudge message (max 12 words). Friendly tone. Use 1 emoji.`;
 });
 
 // ─── POST /api/flow-step ────────────────────────────────────
-// THE KEY FIX: Smart flow that reads user input FIRST and skips questions
-// if all needed info is already provided
 app.post("/api/flow-step", async (req, res) => {
     try {
         const { flow, step, userInput, language, taskContext, flowData, currentTime, currentDate } = req.body;
         const { today, tomorrow, year, month, day } = getDateInfo();
         const lang = getLangRule(language);
 
+        // ── Helper: detect tomorrow intent ──────────────────
+        const isTomorrow = (text) =>
+            /tomorrow|kal\b|next\s+day|agle\s+din/i.test(text || "");
+
+        const getTargetDate = (text) =>
+            isTomorrow(text) ? tomorrow : today;
+
+        const formatDateLabel = (date, lang) => {
+            if (date === tomorrow) {
+                return lang === "english" ? "tomorrow" : "kal ke liye";
+            }
+            return lang === "english" ? "today" : "aaj ke liye";
+        };
+
         // ══════════════════════════════════════════════════════
         // ADD TASK FLOW
         // ══════════════════════════════════════════════════════
         if (flow === "add_task_flow") {
             if (step === "start") {
-                // If user gave a task name already (e.g. clicked "Add Task" and typed something)
-                // OR userInput has task info, parse it immediately
                 const parsePrompt = `${lang}
 User wants to add a task. Their message: "${userInput || ''}"
+TODAY: ${today} | TOMORROW: ${tomorrow}
 
 Extract task info if present. Reply with JSON only:
 {
   "title": "task title or null if not given",
   "startTime": "HH:MM 24h or null",
-  "endTime": "HH:MM 24h or null", 
-  "timeOfDay": "morning/afternoon/evening or null"
+  "endTime": "HH:MM 24h or null",
+  "timeOfDay": "morning/afternoon/evening or null",
+  "date": "YYYY-MM-DD — use ${today} by default, use ${tomorrow} if user says tomorrow/kal/next day"
 }
 
 Rules:
 - "9 to 11 am" → startTime:"09:00", endTime:"11:00", timeOfDay:"morning"
-- "9 to 11 pm" → startTime:"21:00", endTime:"23:00", timeOfDay:"evening"  
+- "9 to 11 pm" → startTime:"21:00", endTime:"23:00", timeOfDay:"evening"
 - "market jaana 9 am" → title:"market jaana", startTime:"09:00", timeOfDay:"morning"
+- "tomorrow" or "kal" → date:"${tomorrow}"
 - If NO title given → title: null
 - If NO time given → startTime: null, timeOfDay: null (will ask)
 Current time: ${currentTime}`;
@@ -385,7 +411,13 @@ Current time: ${currentTime}`;
                     parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
                 } catch {}
 
-                // If we have ALL info → add task immediately, done
+                // Ensure date is always set
+                if (!parsed.date) parsed.date = today;
+
+                const dateLabel = formatDateLabel(parsed.date, language);
+                const isTmrw = parsed.date === tomorrow;
+
+                // If we have ALL info → add task immediately
                 if (parsed.title && parsed.timeOfDay) {
                     const actions = [{
                         type: "add_task",
@@ -393,7 +425,8 @@ Current time: ${currentTime}`;
                             title: parsed.title,
                             timeOfDay: parsed.timeOfDay,
                             startTime: parsed.startTime || null,
-                            endTime: parsed.endTime || null
+                            endTime: parsed.endTime || null,
+                            date: parsed.date
                         }
                     }];
 
@@ -402,9 +435,9 @@ Current time: ${currentTime}`;
                     else if (parsed.startTime) timeStr = ` at ${parsed.startTime}`;
 
                     const confirm = {
-                        hindi: `✅ "${parsed.title}" add ho gaya${timeStr}!`,
-                        english: `✅ Added "${parsed.title}"${timeStr}!`,
-                        hinglish: `✅ "${parsed.title}" add ho gaya${timeStr}!`
+                        hindi: `✅ "${parsed.title}"${isTmrw ? ' कल के लिए' : ''} add ho gaya${timeStr}!`,
+                        english: `✅ Added "${parsed.title}" ${isTmrw ? 'for tomorrow' : 'for today'}${timeStr}!`,
+                        hinglish: `✅ "${parsed.title}" ${dateLabel} add ho gaya${timeStr}!`
                     };
 
                     return res.json({
@@ -419,70 +452,82 @@ Current time: ${currentTime}`;
                     });
                 }
 
-                // If we have title but no time — ask for time
+                // If we have title but no time — ask for time, preserve date
                 if (parsed.title && !parsed.timeOfDay) {
                     return res.json({
                         message: language === "english"
-                            ? `Got it! When do you want to do "${parsed.title}"? Morning, afternoon, evening, or a specific time like 9am?`
-                            : `"${parsed.title}" — kab karna hai? Morning, afternoon, ya specific time jaise 9am?`,
+                            ? `Got it! When do you want to do "${parsed.title}"${isTmrw ? ' tomorrow' : ''}? Morning, afternoon, evening, or a specific time like 9am?`
+                            : `"${parsed.title}" — kab karna hai${isTmrw ? ' kal' : ''}? Morning, afternoon, evening, ya specific time jaise 9am?`,
                         nextStep: "ask_time",
                         flow: "add_task_flow",
-                        flowData: { title: parsed.title }
+                        flowData: { title: parsed.title, date: parsed.date }
                     });
                 }
 
-                // No title at all — ask for it
+                // No title at all — ask for it, but capture date intent from original msg
+                const detectedDate = getTargetDate(userInput);
                 return res.json({
                     message: language === "english"
-                        ? "What task do you want to add? 🤔"
+                        ? `What task do you want to add${detectedDate === tomorrow ? ' for tomorrow' : ''}? 🤔`
                         : language === "hindi"
-                        ? "कौन सा task add करना है?"
-                        : "Kya task add karna hai? 🤔",
+                        ? `${detectedDate === tomorrow ? 'कल के लिए ' : ''}कौन सा task add करना है?`
+                        : `${detectedDate === tomorrow ? 'Kal ke liye ' : ''}kya task add karna hai? 🤔`,
                     nextStep: "ask_title",
                     flow: "add_task_flow",
-                    flowData: {}
+                    flowData: { date: detectedDate }
                 });
             }
 
             if (step === "ask_title") {
-                // User just gave the title — now check if time is in it too
+                const inheritedDate = flowData.date || today;
                 const parsePrompt = `${lang}
 User said: "${userInput}"
-Extract: task title and optionally a time.
-JSON only: { "title": "...", "startTime": "HH:MM or null", "endTime": "HH:MM or null", "timeOfDay": "morning/afternoon/evening or null" }
+TODAY: ${today} | TOMORROW: ${tomorrow}
+Already detected date from previous message: "${inheritedDate}"
+
+Extract: task title and optionally a time. If user mentions tomorrow/kal in THIS message, override date to ${tomorrow}.
+JSON only: { "title": "...", "startTime": "HH:MM or null", "endTime": "HH:MM or null", "timeOfDay": "morning/afternoon/evening or null", "date": "YYYY-MM-DD" }
 Rules: "9 to 11 am" → startTime:"09:00" endTime:"11:00" timeOfDay:"morning"
 Current time: ${currentTime}`;
 
                 const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 100);
-                let parsed = { title: userInput };
+                let parsed = { title: userInput, date: inheritedDate };
                 try {
                     const raw = parseRes.choices[0].message.content || "{}";
-                    parsed = { title: userInput, ...JSON.parse(raw.replace(/```json|```/g, "").trim()) };
+                    parsed = { title: userInput, date: inheritedDate, ...JSON.parse(raw.replace(/```json|```/g, "").trim()) };
                 } catch {}
 
+                if (!parsed.date) parsed.date = inheritedDate;
+                const isTmrw = parsed.date === tomorrow;
+                const dateLabel = formatDateLabel(parsed.date, language);
+
                 if (parsed.timeOfDay) {
-                    // Has time too — add immediately
                     return res.json({
-                        message: language === "english" ? `✅ Added "${parsed.title}"!` : `✅ "${parsed.title}" add ho gaya!`,
-                        actions: [{ type: "add_task", params: { title: parsed.title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime || null, endTime: parsed.endTime || null } }],
+                        message: language === "english"
+                            ? `✅ Added "${parsed.title}" ${isTmrw ? 'for tomorrow' : 'for today'}!`
+                            : `✅ "${parsed.title}" ${dateLabel} add ho gaya!`,
+                        actions: [{ type: "add_task", params: { title: parsed.title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime || null, endTime: parsed.endTime || null, date: parsed.date } }],
                         nextStep: "done",
                         quickActions: [{ label: "➕ Add Another", action: "add_task_flow" }, { label: "✅ Mark Done", action: "check_task_flow" }]
                     });
                 }
 
-                // No time — ask for it
                 return res.json({
                     message: language === "english"
                         ? `"${parsed.title}" — morning, afternoon, evening, or specific time like 3pm?`
                         : `"${parsed.title}" — morning, afternoon, evening, ya specific time jaise 3pm?`,
                     nextStep: "ask_time",
                     flow: "add_task_flow",
-                    flowData: { title: parsed.title }
+                    flowData: { title: parsed.title, date: parsed.date }
                 });
             }
 
             if (step === "ask_time") {
                 const title = flowData.title || "task";
+                const taskDate = flowData.date || today;
+                const isTmrw = taskDate === tomorrow;
+                const dateLabel = formatDateLabel(taskDate, language);
+
                 const timePrompt = `User said: "${userInput}" when asked about time for task "${title}".
 Parse to: { "timeOfDay": "morning/afternoon/evening", "startTime": "HH:MM or null", "endTime": "HH:MM or null" }
 Rules: morning=5am-noon, afternoon=noon-5pm, evening=5pm+. "9 to 11 am"→09:00,11:00,morning. "9 to 11 pm"→21:00,23:00,evening
@@ -500,8 +545,10 @@ JSON only. Current time: ${currentTime}`;
                 else if (parsed.startTime) timeStr = ` at ${parsed.startTime}`;
 
                 return res.json({
-                    message: language === "english" ? `✅ Added "${title}"${timeStr}!` : `✅ "${title}" add ho gaya${timeStr}!`,
-                    actions: [{ type: "add_task", params: { title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime, endTime: parsed.endTime } }],
+                    message: language === "english"
+                        ? `✅ Added "${title}" ${isTmrw ? 'for tomorrow' : ''}${timeStr}!`
+                        : `✅ "${title}" ${dateLabel} add ho gaya${timeStr}!`,
+                    actions: [{ type: "add_task", params: { title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime, endTime: parsed.endTime, date: taskDate } }],
                     nextStep: "done",
                     quickActions: [{ label: "➕ Add Another", action: "add_task_flow" }, { label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }]
                 });
@@ -513,7 +560,6 @@ JSON only. Current time: ${currentTime}`;
         // ══════════════════════════════════════════════════════
         if (flow === "alarm_flow") {
             if (step === "start") {
-                // Parse what user said for alarm info
                 const parsePrompt = `${lang}
 User wants to set an alarm. Their message: "${userInput || ''}"
 TODAY: ${year}-${month}-${day} | TOMORROW: ${tomorrow}
@@ -543,7 +589,6 @@ Rules:
                     parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
                 } catch {}
 
-                // Have time and AM/PM is clear → set alarm immediately
                 if (parsed.time && parsed.ampm_clear !== false) {
                     return res.json({
                         message: language === "english"
@@ -555,7 +600,6 @@ Rules:
                     });
                 }
 
-                // Have time but AM/PM ambiguous → ask
                 if (parsed.time) {
                     const hour12 = parseInt(parsed.time.split(':')[0]) % 12 || 12;
                     return res.json({
@@ -566,7 +610,6 @@ Rules:
                     });
                 }
 
-                // No time at all → ask
                 return res.json({
                     message: language === "english"
                         ? "What time should I set the alarm? ⏰"
@@ -704,7 +747,6 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
                     });
                 }
 
-                // If userInput already contains a task name, match it
                 if (userInput) {
                     const matchedTask = pendingTasks.find(t =>
                         t.title.toLowerCase().includes(userInput.toLowerCase()) ||
@@ -824,7 +866,7 @@ Be direct and encouraging. No long paragraphs.`;
             }
         }
 
-        // Fallback — route to advanced-chat
+        // Fallback
         return res.json({
             message: "Hmm, let me help you with that!",
             nextStep: "done",

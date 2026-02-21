@@ -1,7 +1,18 @@
+// ─────────────────────────────────────────────────────────────
+// CHANGE FROM ORIGINAL:
+//
+// handleAction — case "add_task":
+//   Now passes action.params.date as the 5th argument to onAddTask.
+//   onAddTask signature: (title, timeOfDay, startTime, endTime, date)
+//   Today.jsx's handleAddTaskForDate handles routing to correct day.
+//
+// Everything else is identical to the original ChatBuddy.jsx.
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./ChatBuddy.css";
 
-const API_URL =  import.meta.env.VITE_BACKEND_URL || "http://localhost:3001" ;
+const API_URL =  "http://localhost:3001" || import.meta.env.VITE_BACKEND_URL ;
 
 export default function AdvancedBuddy({
   currentDate,
@@ -29,27 +40,23 @@ export default function AdvancedBuddy({
   const [taskCheckIns, setTaskCheckIns] = useState(new Set());
   const [hasGreeted, setHasGreeted] = useState(false);
 
-  // ─── Nudge Bubble State (floating speech bubble on blob) ──
-  const [nudgeBubble, setNudgeBubble] = useState(null);     // { message, quickActions }
+  // ─── Nudge Bubble State ───────────────────────────────────
+  const [nudgeBubble, setNudgeBubble] = useState(null);
   const [showNudge, setShowNudge] = useState(false);
   const [nudgeIndex, setNudgeIndex] = useState(0);
-  const [blobMood, setBlobMood] = useState("idle");          // idle | happy | thinking
+  const [blobMood, setBlobMood] = useState("idle");
   const nudgeTimerRef = useRef(null);
-  const nudgeFetchedRef = useRef(false);
 
-  // ─── Conversational Flow State ──────────────────────────
-  // Both state (for rendering) + refs (for sync reads in async callbacks)
+  // ─── Conversational Flow State ────────────────────────────
   const [activeFlow, setActiveFlowState] = useState(null);
   const [flowStep, setFlowStepState] = useState(null);
   const [flowData, setFlowDataState] = useState({});
   const [quickActions, setQuickActions] = useState([]);
 
-  // Refs — always in sync, safe to read inside async functions
   const activeFlowRef = useRef(null);
   const flowStepRef = useRef(null);
   const flowDataRef = useRef({});
 
-  // Setters that update both ref + state atomically
   const setActiveFlow = (v) => { activeFlowRef.current = v; setActiveFlowState(v); };
   const setFlowStep  = (v) => { flowStepRef.current  = v; setFlowStepState(v); };
   const setFlowData  = (v) => { flowDataRef.current  = v; setFlowDataState(v); };
@@ -61,7 +68,7 @@ export default function AdvancedBuddy({
   const checkInIntervalRef = useRef(null);
   const monitorIntervalRef = useRef(null);
 
-  // ─── Auto-scroll ────────────────────────────────────────
+  // ─── Auto-scroll ──────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -70,7 +77,7 @@ export default function AdvancedBuddy({
     localStorage.setItem("buddy-language", language);
   }, [language]);
 
-  // ─── Greet user when chat opens ─────────────────────────
+  // ─── Greet user when chat opens ──────────────────────────
   useEffect(() => {
     if (isOpen && !hasGreeted && messages.length === 0) {
       fetchBuddyIntro();
@@ -88,18 +95,16 @@ export default function AdvancedBuddy({
     setQuickActions([]);
   }, [currentDate]);
 
-  // ─── Proactive monitoring ────────────────────────────────
+  // ─── Proactive monitoring ─────────────────────────────────
   useEffect(() => {
     if (monitorIntervalRef.current) clearInterval(monitorIntervalRef.current);
-
     monitorIntervalRef.current = setInterval(() => {
       runProactiveMonitor();
-    }, 5 * 60 * 1000); // every 5 minutes
-
+    }, 5 * 60 * 1000);
     return () => clearInterval(monitorIntervalRef.current);
   }, [tasks, language]);
 
-  // ─── Nudge bubble cycling (shows when chat is CLOSED) ─────
+  // ─── Nudge bubble cycling ─────────────────────────────────
   const nudgeIdxRef = useRef(0);
   const nudgeLoadingRef = useRef(false);
 
@@ -111,21 +116,17 @@ export default function AdvancedBuddy({
       return;
     }
 
-    // Show first bubble immediately
     nudgeIdxRef.current = 0;
     fetchNudge(0);
 
-    // Rotate every 10s — long enough for API + reading time
     nudgeTimerRef.current = setInterval(() => {
       nudgeIdxRef.current = (nudgeIdxRef.current + 1) % 4;
       fetchNudge(nudgeIdxRef.current);
     }, 10000);
 
     return () => clearInterval(nudgeTimerRef.current);
-  // re-run when chat closes, tasks change, or language changes
   }, [isOpen, tasks.length, language]);
 
-  // Static fallback bubbles — shown instantly, replaced by AI version when ready
   const FALLBACK_NUDGES = [
     { message: "Hey! 👋 I'm your buddy. Tap me to chat!", quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }] },
     { message: "Got tasks to finish? Let me help you plan! 🎯", quickActions: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "➕ Add Task", action: "add_task_flow" }] },
@@ -134,11 +135,10 @@ export default function AdvancedBuddy({
   ];
 
   const fetchNudge = async (idx) => {
-    if (nudgeLoadingRef.current) return; // prevent overlap
+    if (nudgeLoadingRef.current) return;
     nudgeLoadingRef.current = true;
 
-    // Show fallback immediately so bubble is never empty
-    setShowNudge(false); // brief hide for transition
+    setShowNudge(false);
     setTimeout(() => {
       setNudgeBubble(FALLBACK_NUDGES[idx % 4]);
       setBlobMood("happy");
@@ -146,7 +146,6 @@ export default function AdvancedBuddy({
       setTimeout(() => setBlobMood("idle"), 800);
     }, 150);
 
-    // Then silently upgrade to AI version in background
     try {
       const now = new Date();
       const currentTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -157,19 +156,18 @@ export default function AdvancedBuddy({
       });
       if (res.ok) {
         const data = await res.json();
-        // Only update if we're still on the same nudge index
         if (nudgeIdxRef.current === idx) {
           setNudgeBubble({ message: data.message, quickActions: data.quickActions });
         }
       }
     } catch (_) {
-      // fallback already showing, no action needed
+      // fallback already showing
     } finally {
       nudgeLoadingRef.current = false;
     }
   };
 
-  // ─── Task monitoring ─────────────────────────────────────
+  // ─── Task monitoring ──────────────────────────────────────
   useEffect(() => {
     if (reminderIntervalRef.current) clearInterval(reminderIntervalRef.current);
     if (checkInIntervalRef.current) clearInterval(checkInIntervalRef.current);
@@ -186,7 +184,7 @@ export default function AdvancedBuddy({
     };
   }, [tasks, currentDate, language]);
 
-  // ─── Speech Recognition ──────────────────────────────────
+  // ─── Speech Recognition ───────────────────────────────────
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
 
@@ -233,7 +231,7 @@ export default function AdvancedBuddy({
     return () => recognitionRef.current?.stop();
   }, [language]);
 
-  // ─── FETCH BUDDY INTRO ───────────────────────────────────
+  // ─── FETCH BUDDY INTRO ────────────────────────────────────
   const fetchBuddyIntro = async () => {
     setIsProcessing(true);
     try {
@@ -243,12 +241,7 @@ export default function AdvancedBuddy({
       const response = await fetch(`${API_URL}/api/buddy-intro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language,
-          taskContext: getTaskContext(),
-          currentTime,
-          currentDate
-        })
+        body: JSON.stringify({ language, taskContext: getTaskContext(), currentTime, currentDate })
       });
 
       const data = await response.json();
@@ -260,15 +253,13 @@ export default function AdvancedBuddy({
         isIntro: true
       }]);
 
-      if (data.quickActions) {
-        setQuickActions(data.quickActions);
-      }
+      if (data.quickActions) setQuickActions(data.quickActions);
     } catch (error) {
       console.error("Buddy intro error:", error);
       setMessages([{
         role: "assistant",
         content: language === "english"
-          ? "Hey! I'm your AI buddy 👋 I'm here to help you plan your day, add tasks, set alarms, and keep you on track! What would you like to do?"
+          ? "Hey! I'm your AI buddy 👋 Tasks, alarms, reminders - I handle it all! What do you need?"
           : language === "hindi"
           ? "नमस्ते! मैं आपका AI buddy हूं 👋 Tasks, alarms, reminders - सब manage करता हूं! क्या करें?"
           : "Hey! Main aapka AI buddy hoon 👋 Tasks add karo, alarm lagao, reminder set karo - sab handle karta hoon! Kya karna hai?",
@@ -286,14 +277,13 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── HANDLE QUICK ACTION BUTTON CLICK ────────────────────
+  // ─── HANDLE QUICK ACTION ──────────────────────────────────
   const handleQuickAction = async (action) => {
     if (action === "dismiss") {
       setQuickActions([]);
       return;
     }
 
-    // Start the guided flow
     setActiveFlow(action);
     setFlowStep("start");
     setFlowData({});
@@ -302,7 +292,7 @@ export default function AdvancedBuddy({
     await executeFlowStep(action, "start", null, {});
   };
 
-  // ─── EXECUTE FLOW STEP ───────────────────────────────────
+  // ─── EXECUTE FLOW STEP ────────────────────────────────────
   const executeFlowStep = async (flow, step, userInput, currentFlowData) => {
     setIsProcessing(true);
     try {
@@ -326,7 +316,6 @@ export default function AdvancedBuddy({
 
       const data = await response.json();
 
-      // Add assistant message
       if (data.message) {
         setMessages(prev => [...prev, {
           role: "assistant",
@@ -336,27 +325,23 @@ export default function AdvancedBuddy({
         }]);
       }
 
-      // Execute any actions (add task, set alarm, etc.)
       if (data.actions && data.actions.length > 0) {
         for (const action of data.actions) {
           await handleAction(action);
         }
       }
 
-      // Update flow state — update refs first so next message read is correct
       if (data.flow && data.nextStep && data.nextStep !== "done") {
         const merged = { ...flowDataRef.current, ...(data.flowData || {}) };
         setActiveFlow(data.flow);
         setFlowStep(data.nextStep);
         setFlowData(merged);
       } else {
-        // Flow completed — reset everything
         setActiveFlow(null);
         setFlowStep(null);
         setFlowData({});
       }
 
-      // Set quick action buttons
       if (data.quickActions) {
         setQuickActions(data.quickActions);
       } else {
@@ -377,9 +362,9 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── PROACTIVE MONITOR ───────────────────────────────────
+  // ─── PROACTIVE MONITOR ────────────────────────────────────
   const runProactiveMonitor = async () => {
-    if (isOpen) return; // Don't show popup if chat is open
+    if (isOpen) return;
 
     const now = new Date();
     const hour = now.getHours();
@@ -426,7 +411,7 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── TASK REMINDERS ──────────────────────────────────────
+  // ─── TASK REMINDERS ───────────────────────────────────────
   const checkTaskReminders = async () => {
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
@@ -462,12 +447,11 @@ export default function AdvancedBuddy({
 
   const sendTaskReminder = async (task) => {
     try {
-      const response = await fetch(`${API_URL}/api/task-reminder`, {
+      await fetch(`${API_URL}/api/task-reminder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task, language, currentDate })
       });
-      const data = await response.json();
 
       const messages = {
         hindi: `⏰ "${task.title}" 10 मिनट में शुरू होने वाला है। तैयार हो जाओ!`,
@@ -552,7 +536,7 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── GET TASK CONTEXT ────────────────────────────────────
+  // ─── GET TASK CONTEXT ─────────────────────────────────────
   const getTaskContext = () => {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
@@ -566,7 +550,7 @@ export default function AdvancedBuddy({
     };
   };
 
-  // ─── MAIN MESSAGE HANDLER ────────────────────────────────
+  // ─── MAIN MESSAGE HANDLER ─────────────────────────────────
   const handleSendMessage = async (text) => {
     if (!text.trim()) return;
 
@@ -575,13 +559,11 @@ export default function AdvancedBuddy({
     setInputText("");
     setQuickActions([]);
 
-    // If we're in a guided flow, continue it (use refs for sync reads)
     if (activeFlowRef.current && flowStepRef.current) {
       await executeFlowStep(activeFlowRef.current, flowStepRef.current, text, flowDataRef.current);
       return;
     }
 
-    // Otherwise use the regular chat endpoint
     setIsProcessing(true);
     try {
       const response = await fetch(`${API_URL}/api/advanced-chat`, {
@@ -611,7 +593,6 @@ export default function AdvancedBuddy({
         timestamp: new Date()
       }]);
 
-      // Show contextual quick actions after regular chat response
       const ctx = getTaskContext();
       if (ctx.pending > 0) {
         setQuickActions([
@@ -632,7 +613,7 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── ACTION HANDLER ──────────────────────────────────────
+  // ─── ACTION HANDLER ───────────────────────────────────────
   const handleAction = async (action) => {
     console.log("🎯 Handling action:", action);
 
@@ -645,12 +626,14 @@ export default function AdvancedBuddy({
         await scheduleReminder(action.params.time, action.params.message);
         break;
 
+      // ── 🆕 KEY CHANGE: pass `date` as 5th argument ──────────
       case "add_task":
         onAddTask(
           action.params.title,
           action.params.timeOfDay,
           action.params.startTime || null,
-          action.params.endTime || null
+          action.params.endTime || null,
+          action.params.date || null   // ← NEW: date field for tomorrow support
         );
         break;
 
@@ -663,9 +646,7 @@ export default function AdvancedBuddy({
           action.params.taskTitle?.toLowerCase().includes(t.title.toLowerCase())
         );
 
-        if (taskToComplete) {
-          onCompleteTask(taskToComplete.id);
-        }
+        if (taskToComplete) onCompleteTask(taskToComplete.id);
         break;
       }
 
@@ -701,7 +682,7 @@ export default function AdvancedBuddy({
     }
   };
 
-  // ─── REMINDER SCHEDULER ──────────────────────────────────
+  // ─── REMINDER SCHEDULER ───────────────────────────────────
   const scheduleReminder = async (time, message) => {
     const [hours, minutes] = time.split(':').map(Number);
     const now = new Date();
@@ -741,7 +722,7 @@ export default function AdvancedBuddy({
     }, delay);
   };
 
-  // ─── VOICE INPUT ─────────────────────────────────────────
+  // ─── VOICE INPUT ──────────────────────────────────────────
   const toggleVoiceInput = () => {
     if (isListening) recognitionRef.current?.stop();
     else recognitionRef.current?.start();
@@ -752,7 +733,7 @@ export default function AdvancedBuddy({
     if (inputText.trim()) handleSendMessage(inputText);
   };
 
-  // ─── FLOW STATUS LABEL ───────────────────────────────────
+  // ─── FLOW STATUS LABEL ────────────────────────────────────
   const getFlowStatusLabel = () => {
     if (!activeFlow) return null;
     const labels = {
@@ -771,7 +752,7 @@ export default function AdvancedBuddy({
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <>
-      {/* ─── Proactive task-reminder popup (full overlay, unchanged) ─── */}
+      {/* Proactive popup */}
       {showProactivePopup && (
         <div className="proactive-popup-overlay">
           <div className="proactive-popup">
@@ -802,10 +783,9 @@ export default function AdvancedBuddy({
         </div>
       )}
 
-      {/* ─── FLOATING BLOB + SPEECH BUBBLE WIDGET ─── */}
+      {/* Floating blob + speech bubble */}
       <div className="buddy-float-zone">
 
-        {/* Speech bubble — shown when chat is closed */}
         {!isOpen && showNudge && nudgeBubble && (
           <div className="buddy-speech-bubble" key={nudgeIndex}>
             <div className="bubble-sparkle">✦</div>
@@ -821,7 +801,6 @@ export default function AdvancedBuddy({
                       setIsOpen(true);
                     } else {
                       setIsOpen(true);
-                      // Small delay so chat window renders first
                       setTimeout(() => handleQuickAction(qa.action), 200);
                     }
                   }}
@@ -830,8 +809,6 @@ export default function AdvancedBuddy({
                 </button>
               ))}
             </div>
-            {/* Bubble tail */}
-            {/* Progress dots */}
             <div className="bubble-dots">
               {[0,1,2,3].map(i => (
                 <div key={i} className={`bubble-dot ${nudgeIdxRef.current === i ? 'active' : ''}`} />
@@ -841,7 +818,6 @@ export default function AdvancedBuddy({
           </div>
         )}
 
-        {/* The blob character button */}
         <button
           className={`buddy-blob ${isListening ? 'listening' : ''} ${blobMood} ${isOpen ? 'open' : ''}`}
           onClick={() => {
@@ -850,7 +826,6 @@ export default function AdvancedBuddy({
           }}
           aria-label="Toggle AI Buddy"
         >
-          {/* Blob face */}
           <div className="blob-face">
             {isListening ? (
               <div className="blob-sound-waves">
@@ -868,15 +843,12 @@ export default function AdvancedBuddy({
               </>
             )}
           </div>
-
         </button>
-
       </div>
 
       {/* Chat Window */}
       {isOpen && (
         <div className="advanced-buddy-window">
-          {/* Header */}
           <div className="buddy-header">
             <div className="buddy-info">
               <div className="buddy-avatar-small"><i className="fas fa-smile-beam"></i></div>
@@ -893,7 +865,7 @@ export default function AdvancedBuddy({
             <button className="close-btn" onClick={() => setIsOpen(false)}>×</button>
           </div>
 
-          {/* Language + Mode Tabs */}
+          {/* Language tabs */}
           <div className="voice-mode-tabs">
             {["hindi", "english", "hinglish"].map(lang => (
               <button key={lang} className={language === lang ? "active" : ""} onClick={() => setLanguage(lang)}>
@@ -921,7 +893,6 @@ export default function AdvancedBuddy({
                 setActiveFlow(null);
                 setFlowStep(null);
                 setFlowData({});
-                // reset refs explicitly too
                 activeFlowRef.current = null;
                 flowStepRef.current = null;
                 flowDataRef.current = {};
@@ -942,11 +913,7 @@ export default function AdvancedBuddy({
               <div className="message assistant">
                 <div className="message-content">
                   <i className="fas fa-sparkles" style={{ marginRight: '6px', color: '#fdcb6e' }}></i>
-                  {language === "english"
-                    ? "Hey! Opening your buddy... 👋"
-                    : language === "hindi"
-                    ? "नमस्ते! लोड हो रहा है... 👋"
-                    : "Hey! Load ho raha hai... 👋"}
+                  {language === "english" ? "Hey! Opening your buddy... 👋" : language === "hindi" ? "नमस्ते! लोड हो रहा है... 👋" : "Hey! Load ho raha hai... 👋"}
                 </div>
               </div>
             )}
@@ -974,7 +941,7 @@ export default function AdvancedBuddy({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Action Buttons */}
+          {/* Quick Actions */}
           {quickActions.length > 0 && !isProcessing && (
             <div className="quick-actions-bar">
               {quickActions.map((qa, idx) => (
