@@ -55,6 +55,14 @@ function to24Hour(hour, minute, period) {
     return `${String(h).padStart(2, "0")}:${minute}`;
 }
 
+function to12Hour(time24) {
+    if (!time24) return { hour: "12", minute: "00", period: "AM" };
+    const [h, m] = time24.split(":").map(Number);
+    let hour = h % 12 || 12;
+    const period = h < 12 ? "AM" : "PM";
+    return { hour: String(hour), minute: String(m).padStart(2, "0"), period };
+}
+
 function checkAlarm(alarm, now) {
     const [h, m] = alarm.time24.split(":").map(Number);
 
@@ -79,25 +87,30 @@ function checkAlarm(alarm, now) {
 
 const AlarmPlanner = forwardRef((props, ref) => {
     const getTodayDate = () => new Date().toISOString().split("T")[0];
+    const getTomorrowDate = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return d.toISOString().split("T")[0];
+    };
 
     const [alarms, dispatch] = useReducer(
-    alarmReducer,
-    [],
-    () => {
-        try {
-            const saved = localStorage.getItem("alarms");
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
+        alarmReducer,
+        [],
+        () => {
+            try {
+                const saved = localStorage.getItem("alarms");
+                return saved ? JSON.parse(saved) : [];
+            } catch {
+                return [];
+            }
         }
-    }
-);
+    );
 
     const [activeAlarm, setActiveAlarm] = useState(null);
     const [editingId, setEditingId] = useState(null);
 
     const audioRef = useRef(null);
-    const audioUnlockedRef = useRef(false); // ✅ browser autoplay fix
+    const audioUnlockedRef = useRef(false);
 
     const [form, setForm] = useState({
         hour: "1",
@@ -108,18 +121,60 @@ const AlarmPlanner = forwardRef((props, ref) => {
         repeat: "once"
     });
 
+    /* ===================== IMPERATIVE HANDLE (buddy integration) ===================== */
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // addAlarmFromBuddy({ hour, minute, period, date, label, repeat })
+    //   Called by Today.jsx → handleAddAlarm when the AI buddy sets an alarm.
+    //   Converts 12h form fields → 24h time24, builds full alarm object, dispatches ADD.
+    //   If date is empty ("") → defaults to today.
+    //   If date is tomorrow's date string → alarm fires tomorrow.
+    // ─────────────────────────────────────────────────────────────────────────────────
+    useImperativeHandle(ref, () => ({
+        addAlarmFromBuddy: ({ hour, minute, period, date, label, repeat }) => {
+            unlockAudio();
 
-/* ===================== SAVE TO LOCAL STORAGE ===================== */
+            if (alarms.length >= 4) {
+                console.warn("⚠️ AlarmPlanner: max 4 alarms reached, cannot add more");
+                return;
+            }
 
-useEffect(() => {
-    localStorage.setItem("alarms", JSON.stringify(alarms));
-}, [alarms]);
+            const resolvedDate = date || getTodayDate(); // never empty
+            const time24 = to24Hour(hour || "1", minute || "00", period || "AM");
+            const displayTime = `${hour || "1"}:${minute || "00"} ${period || "AM"}`;
+
+            dispatch({
+                type: "ADD",
+                payload: {
+                    id: Date.now(),
+                    time24,
+                    displayTime,
+                    date: resolvedDate,
+                    label: label || "Alarm",
+                    repeat: repeat || "once",
+                    repeatDays: [1, 2, 3, 4, 5],
+                    isActive: true,
+                    snoozeMinutes: 5,
+                    autoStopMinutes: 1,
+                    lastTriggered: null,
+                    snoozedUntil: null,
+                    addedByBuddy: true        // optional tag for debugging
+                }
+            });
+
+            console.log(`✅ AlarmPlanner: alarm added by buddy → ${displayTime} on ${resolvedDate}`);
+        }
+    }), [alarms.length]);
+
+    /* ===================== SAVE TO LOCAL STORAGE ===================== */
+
+    useEffect(() => {
+        localStorage.setItem("alarms", JSON.stringify(alarms));
+    }, [alarms]);
 
     /* ===================== AUTO UNLOCK AUDIO ===================== */
 
     const unlockAudio = () => {
         if (audioUnlockedRef.current || !audioRef.current) return;
-
         audioRef.current.volume = 1;
         audioRef.current.play()
             .then(() => {
@@ -130,7 +185,6 @@ useEffect(() => {
             .catch(() => { });
     };
 
-    // first user interaction unlocks audio
     useEffect(() => {
         window.addEventListener("click", unlockAudio);
         return () => window.removeEventListener("click", unlockAudio);
@@ -143,33 +197,24 @@ useEffect(() => {
         dispatch({ type: "LOAD", payload: saved });
     }, []);
 
-    useEffect(() => {
-        localStorage.setItem("alarms", JSON.stringify(alarms));
-    }, [alarms]);
-
     /* ===================== CHECK ALARM ===================== */
 
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date();
-
             alarms.forEach(alarm => {
                 if (checkAlarm(alarm, now)) {
                     dispatch({ type: "TRIGGER", payload: alarm.id });
                     setActiveAlarm(alarm);
-
-                    // ✅ direct sound play
                     if (audioRef.current) {
                         audioRef.current.currentTime = 0;
                         audioRef.current.loop = true;
                         audioRef.current.play().catch(() => { });
                     }
-
                     setTimeout(() => stopAlarm(alarm.id), alarm.autoStopMinutes * 60000);
                 }
             });
         }, 1000);
-
         return () => clearInterval(interval);
     }, [alarms]);
 
@@ -189,7 +234,7 @@ useEffect(() => {
         const payload = {
             time24,
             displayTime,
-            date: form.date,
+            date: form.date || getTodayDate(),
             label: form.label,
             repeat: form.repeat
         };
@@ -218,19 +263,15 @@ useEffect(() => {
 
     function startEdit(alarm) {
         unlockAudio();
-
-        const [time, period] = alarm.displayTime.split(" ");
-        const [hour, minute] = time.split(":");
-
+        const { hour, minute, period } = to12Hour(alarm.time24);
         setForm({
             hour,
             minute,
             period,
-            date: alarm.date,
+            date: alarm.date || getTodayDate(),
             label: alarm.label,
             repeat: alarm.repeat
         });
-
         setEditingId(alarm.id);
     }
 
@@ -242,7 +283,6 @@ useEffect(() => {
                 until: Date.now() + activeAlarm.snoozeMinutes * 60000
             }
         });
-
         stopAudio();
         setActiveAlarm(null);
     }
@@ -257,6 +297,19 @@ useEffect(() => {
         if (!audioRef.current) return;
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
+    }
+
+    /* ===================== HELPERS ===================== */
+
+    // Human-readable date label shown in the alarm list
+    function getDateLabel(dateStr) {
+        if (!dateStr) return "";
+        const today = getTodayDate();
+        const tomorrow = getTomorrowDate();
+        if (dateStr === today) return "Today";
+        if (dateStr === tomorrow) return "Tomorrow";
+        // e.g. "Mar 5"
+        return new Date(dateStr + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }
 
     /* ===================== UI ===================== */
@@ -283,9 +336,11 @@ useEffect(() => {
                     </select>
                 </div>
 
-                <input type="date"
+                <input
+                    type="date"
                     value={form.date}
-                    onChange={e => setForm({ ...form, date: e.target.value })} />
+                    onChange={e => setForm({ ...form, date: e.target.value })}
+                />
 
                 <input
                     type="text"
@@ -294,8 +349,7 @@ useEffect(() => {
                     onChange={e => setForm({ ...form, label: e.target.value })}
                 />
 
-                <select value={form.repeat}
-                    onChange={e => setForm({ ...form, repeat: e.target.value })}>
+                <select value={form.repeat} onChange={e => setForm({ ...form, repeat: e.target.value })}>
                     <option value="once">Once</option>
                     <option value="daily">Daily</option>
                     <option value="custom">Mon–Fri</option>
@@ -313,7 +367,9 @@ useEffect(() => {
                     <li key={a.id} onClick={() => startEdit(a)} style={{ cursor: "pointer" }}>
                         <span>
                             <strong>{a.displayTime}</strong>
+                            {a.date && <span className="alarm-date-label"> · {getDateLabel(a.date)}</span>}
                             {a.label && <> — {a.label}</>}
+                            {a.addedByBuddy && <span className="alarm-buddy-tag"> 🤖</span>}
                         </span>
 
                         <button

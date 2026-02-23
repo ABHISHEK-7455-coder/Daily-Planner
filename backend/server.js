@@ -18,7 +18,7 @@ webPush.setVapidDetails(
 const subscriptions = new Map();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ─── Model rotation (only live models) ─────────────────────
+// ─── Model rotation ─────────────────────────────────────────
 const FAST_MODELS = ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"];
 const SMART_MODELS = ["llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct"];
 let fastIdx = 0, smartIdx = 0;
@@ -42,7 +42,7 @@ async function callGroq(messages, tools = null, smart = false, maxTokens = 600) 
     }
 }
 
-app.use(cors({ origin:"http://localhost:5173" || process.env.FRONTEND_URL , methods: ["GET", "POST"], allowedHeaders: ["Content-Type"] }));
+app.use(cors({ origin: "http://localhost:5173" || process.env.FRONTEND_URL, methods: ["GET", "POST"], allowedHeaders: ["Content-Type"] }));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
@@ -79,10 +79,10 @@ function getDateInfo() {
     };
 }
 
-// ─── SYSTEM PROMPT FOR ADVANCED CHAT ───────────────────────
+// ─── SYSTEM PROMPT ──────────────────────────────────────────
 function buildSystemPrompt(language, taskContext) {
-    const { total, completed, pending, pendingTasks, completedTasks } = taskContext;
-    const { today, tomorrow, currentTime, year, month, day } = getDateInfo();
+    const { total, completed, pending, pendingTasks } = taskContext;
+    const { today, tomorrow, currentTime } = getDateInfo();
 
     let taskSnapshot = total === 0 ? "User has NO tasks today yet." :
         `Tasks: ${completed} done, ${pending} pending.\nPending: ${pendingTasks.map(t => `"${t.title}"${t.startTime ? ` at ${t.startTime}` : ''}`).join(', ')}`;
@@ -98,50 +98,46 @@ CURRENT TIME: ${currentTime} | TODAY: ${today} | TOMORROW: ${tomorrow}
 GOLDEN RULE: IF USER ALREADY GAVE THE INFO — JUST DO IT. NO FOLLOW-UP QUESTIONS.
 ══════════════════════════════════════════════
 
-Examples of doing it RIGHT:
-✅ "add task market 9 to 11 am" → IMMEDIATELY call add_task("market jaana", "morning", "09:00", "11:00", date:"${today}")
-✅ "add task market tomorrow 9am" → IMMEDIATELY call add_task("market", "morning", "09:00", null, date:"${tomorrow}")
-✅ "kal gym karna hai 6am" → IMMEDIATELY call add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
-✅ "set alarm 7am tomorrow" → IMMEDIATELY call set_alarm("07:00", "${tomorrow}", "Alarm", "once")
-✅ "market ho gaya" → IMMEDIATELY call complete_task("market")
-✅ "remind me in 5 min" → IMMEDIATELY call set_reminder(currentTime+5min, "reminder")
-✅ "9 to 11 PM market" → IMMEDIATELY call add_task("market", "evening", "21:00", "23:00", date:"${today}")
+Examples:
+✅ "add task market 9 to 11 am" → add_task("market", "morning", "09:00", "11:00", date:"${today}")
+✅ "add task gym tomorrow 6am" → add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
+✅ "kal gym karna hai 6am" → add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
+✅ "set alarm 7am tomorrow" → set_alarm("07:00", "${tomorrow}", "Alarm", "once")
+✅ "remind me tomorrow 9am to call doctor" → set_reminder("09:00", "call doctor", date:"${tomorrow}")
+✅ "remind me in 5 min" → set_reminder(currentTime+5min, "reminder", date:"${today}")
+✅ "set reminder 25 feb 3pm meeting" → set_reminder("15:00", "meeting", date:"2026-02-25")
+✅ "market ho gaya" → complete_task("market")
 
-DATE RULES:
-- Default date for add_task is ALWAYS today: "${today}"
-- "tomorrow" / "kal" / "next day" → use date: "${tomorrow}"
-- "today" / "aaj" → use date: "${today}"
-- NEVER omit the date field — always include it
-
-Only ask a follow-up if critical info is GENUINELY missing:
-- "add task" with NO title → ask what task
-- "set alarm" with NO time at all → ask what time
-- Everything else → JUST DO IT
+DATE RULES (apply to ALL tools):
+- Default date is ALWAYS today: "${today}"
+- "tomorrow" / "kal" / "next day" → date: "${tomorrow}"
+- "today" / "aaj" → date: "${today}"
+- Specific dates like "25 feb", "march 5" → convert to YYYY-MM-DD
+- NEVER omit the date field
 
 TIME RULES:
-- "9 am" = "09:00" | "9 pm" = "21:00" | "1 am" = "01:00" | "1 pm" = "13:00"
-- "9 to 11 am" → startTime "09:00", endTime "11:00", timeOfDay "morning"
-- "9 to 11 pm" → startTime "21:00", endTime "23:00", timeOfDay "evening"
-- 5am-11:59am = morning | 12pm-4:59pm = afternoon | 5pm-4:59am = evening
-- NEVER send null for date on set_alarm — use "" if no date
+- "9 am"="09:00" | "9 pm"="21:00" | "1 am"="01:00" | "1 pm"="13:00"
+- "9 to 11 am" → startTime "09:00", endTime "11:00"
+- 5am-noon=morning | noon-5pm=afternoon | 5pm+=evening
 
-Keep replies SHORT (1-2 sentences max). Be warm and encouraging.`.trim();
+Keep replies SHORT (1-2 sentences). Be warm and encouraging.`.trim();
 }
 
-// ─── TOOLS DEFINITION ──────────────────────────────────────
+// ─── TOOLS ──────────────────────────────────────────────────
 const TOOLS = [
     {
         type: "function",
         function: {
             name: "set_reminder",
-            description: "Set a reminder notification. Use when user says 'remind me in X min' or 'reminder at X'.",
+            description: "Set a reminder. Supports future dates — today, tomorrow, or any specific date. Use when user says 'remind me at X', 'remind me tomorrow at Y', 'reminder on March 5 at Z'.",
             parameters: {
                 type: "object",
                 properties: {
-                    time: { type: "string", description: "HH:MM 24-hour. If '5 min', calculate current time + 5 mins." },
-                    message: { type: "string", description: "What to remind about" }
+                    time: { type: "string", description: "HH:MM 24h. If 'in 5 min', calculate current time + 5 mins." },
+                    message: { type: "string", description: "What to remind about" },
+                    date: { type: "string", description: "YYYY-MM-DD. REQUIRED. Default=today. 'tomorrow'/'kal'→tomorrow's date. Specific dates like '25 feb'→'2026-02-25'." }
                 },
-                required: ["time", "message"]
+                required: ["time", "message", "date"]
             }
         }
     },
@@ -149,16 +145,16 @@ const TOOLS = [
         type: "function",
         function: {
             name: "set_alarm",
-            description: "Set an alarm. Use for wake-up alarms or future scheduled alerts.",
+            description: "Set an alarm. Supports today, tomorrow, or any future date.",
             parameters: {
                 type: "object",
                 properties: {
-                    time: { type: "string", description: "HH:MM 24h. 1am=01:00, 1pm=13:00, 9pm=21:00" },
-                    date: { type: "string", description: "YYYY-MM-DD or empty string ''. NEVER null." },
+                    time: { type: "string", description: "HH:MM 24h" },
+                    date: { type: "string", description: "YYYY-MM-DD. REQUIRED. Default=today. 'tomorrow'/'kal'→tomorrow. NEVER empty string." },
                     label: { type: "string", description: "What alarm is for" },
                     repeat: { type: "string", enum: ["once", "daily", "custom"] }
                 },
-                required: ["time"]
+                required: ["time", "date"]
             }
         }
     },
@@ -166,11 +162,11 @@ const TOOLS = [
         type: "function",
         function: {
             name: "update_notes",
-            description: "Update daily notes. Pass user's EXACT words, never summarize.",
+            description: "Update daily notes.",
             parameters: {
                 type: "object",
                 properties: {
-                    content: { type: "string", description: "User's exact words unchanged" },
+                    content: { type: "string" },
                     mode: { type: "string", enum: ["append", "replace"] }
                 },
                 required: ["content"]
@@ -181,15 +177,15 @@ const TOOLS = [
         type: "function",
         function: {
             name: "add_task",
-            description: "Add a task. Extract ALL info from user message — title, time, timeOfDay, and date. CRITICAL: if user says 'tomorrow' or 'kal', set date to tomorrow's date. Default date is today.",
+            description: "Add a task. CRITICAL: if user says 'tomorrow'/'kal', set date to tomorrow's date.",
             parameters: {
                 type: "object",
                 properties: {
-                    title: { type: "string", description: "Task title" },
-                    timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"], description: "Based on time: 5am-noon=morning, noon-5pm=afternoon, 5pm+=evening" },
-                    startTime: { type: "string", description: "HH:MM 24h format if mentioned" },
-                    endTime: { type: "string", description: "HH:MM 24h if end time mentioned" },
-                    date: { type: "string", description: "YYYY-MM-DD. REQUIRED. Use today's date by default. Use tomorrow's date if user says 'tomorrow', 'kal', 'next day'." }
+                    title: { type: "string" },
+                    timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"] },
+                    startTime: { type: "string", description: "HH:MM 24h or null" },
+                    endTime: { type: "string", description: "HH:MM 24h or null" },
+                    date: { type: "string", description: "YYYY-MM-DD. REQUIRED. Default=today. 'tomorrow'/'kal'→tomorrow's date." }
                 },
                 required: ["title", "timeOfDay", "date"]
             }
@@ -202,7 +198,7 @@ const TOOLS = [
             description: "Mark a task as done.",
             parameters: {
                 type: "object",
-                properties: { taskTitle: { type: "string", description: "Match from pending tasks list" } },
+                properties: { taskTitle: { type: "string" } },
                 required: ["taskTitle"]
             }
         }
@@ -228,7 +224,9 @@ app.post("/api/advanced-chat", async (req, res) => {
         if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "Messages required" });
         if (!taskContext) return res.status(400).json({ error: "taskContext required" });
 
-        // Notes bypass — fast path
+        const { today } = getDateInfo();
+
+        // Notes bypass
         const lastMsg = messages[messages.length - 1]?.content || "";
         if (/notes?\s+mein|daily\s+notes|meri\s+daily|mere\s+daily|diary\s+mein/i.test(lastMsg)) {
             const content = lastMsg
@@ -243,11 +241,10 @@ app.post("/api/advanced-chat", async (req, res) => {
         }
 
         let systemPrompt = buildSystemPrompt(language || "hinglish", taskContext);
-
         if (isVoice && voiceMode === 'notes') {
-            systemPrompt += "\n\nVOICE NOTES MODE: ALWAYS call update_notes with user's EXACT words. Never summarize or shorten.";
+            systemPrompt += "\n\nVOICE NOTES MODE: ALWAYS call update_notes with user's EXACT words.";
         } else if (voiceMode === 'tasks') {
-            systemPrompt += "\n\nTASKS MODE: Parse and add/complete/delete tasks from user message. Be direct.";
+            systemPrompt += "\n\nTASKS MODE: Parse and add/complete/delete tasks. Be direct.";
         }
 
         const completion = await callGroq(
@@ -262,16 +259,18 @@ app.post("/api/advanced-chat", async (req, res) => {
             for (const toolCall of response.message.tool_calls) {
                 try {
                     const params = JSON.parse(toolCall.function.arguments);
-                    if (toolCall.function.name === "set_alarm") {
-                        if (!params.date) params.date = "";
+                    const name = toolCall.function.name;
+
+                    // Ensure date always has a value
+                    if (["add_task", "set_alarm", "set_reminder"].includes(name)) {
+                        if (!params.date) params.date = today;
+                    }
+                    if (name === "set_alarm") {
                         if (!params.label) params.label = "Alarm";
                         if (!params.repeat) params.repeat = "once";
                     }
-                    // Ensure add_task always has a date (fallback to today)
-                    if (toolCall.function.name === "add_task") {
-                        if (!params.date) params.date = getDateInfo().today;
-                    }
-                    actions.push({ type: toolCall.function.name, params });
+
+                    actions.push({ type: name, params });
                 } catch (e) { console.error("Parse error:", e); }
             }
         }
@@ -287,7 +286,7 @@ app.post("/api/advanced-chat", async (req, res) => {
 // ─── POST /api/buddy-intro ──────────────────────────────────
 app.post("/api/buddy-intro", async (req, res) => {
     try {
-        const { language, taskContext, currentTime, currentDate } = req.body;
+        const { language, taskContext, currentTime } = req.body;
         const { total, pending, pendingTasks } = taskContext;
         const hour = parseInt((currentTime || "12:00").split(':')[0]);
         const greeting = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
@@ -309,7 +308,6 @@ Write ONE warm friendly greeting sentence. Max 20 words. Use 1 emoji. Be encoura
             ]
         });
     } catch (e) {
-        console.error("Buddy intro error:", e);
         res.json({
             message: "Hey! 👋 Kya karna hai aaj?",
             quickActions: [
@@ -327,11 +325,10 @@ app.post("/api/buddy-nudge", async (req, res) => {
     try {
         const { language, taskContext, currentTime, nudgeIndex } = req.body;
         const { pending, pendingTasks } = taskContext;
-        const hour = parseInt((currentTime || "12:00").split(':')[0]);
 
         const nudgeTypes = [
             { ctx: `Say hi and offer to help. ${pending > 0 ? `They have ${pending} tasks pending.` : 'No tasks yet.'}`, chips: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }] },
-            { ctx: `Encourage to complete tasks. ${pending > 0 ? `Pending: ${pendingTasks.slice(0,2).map(t=>t.title).join(', ')}` : 'All done!'}`, chips: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "➕ Add Task", action: "add_task_flow" }] },
+            { ctx: `Encourage to complete tasks. ${pending > 0 ? `Pending: ${pendingTasks.slice(0, 2).map(t => t.title).join(', ')}` : 'All done!'}`, chips: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "➕ Add Task", action: "add_task_flow" }] },
             { ctx: `Suggest writing notes about their day.`, chips: [{ label: "📝 Write Notes", action: "notes_flow" }, { label: "💬 Chat", action: "open_chat" }] },
             { ctx: `Suggest setting an alarm or reminder.`, chips: [{ label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "🔔 Reminder", action: "reminder_flow" }] }
         ];
@@ -360,22 +357,39 @@ Write ONE short nudge message (max 12 words). Friendly tone. Use 1 emoji.`;
 app.post("/api/flow-step", async (req, res) => {
     try {
         const { flow, step, userInput, language, taskContext, flowData, currentTime, currentDate } = req.body;
-        const { today, tomorrow, year, month, day } = getDateInfo();
+        const { today, tomorrow } = getDateInfo();
         const lang = getLangRule(language);
 
-        // ── Helper: detect tomorrow intent ──────────────────
-        const isTomorrow = (text) =>
-            /tomorrow|kal\b|next\s+day|agle\s+din/i.test(text || "");
+        // ── Shared date helpers ──────────────────────────────
+        const isTomorrow = (text) => /tomorrow|kal\b|next\s+day|agle\s+din/i.test(text || "");
+        const getTargetDate = (text) => isTomorrow(text) ? tomorrow : today;
 
-        const getTargetDate = (text) =>
-            isTomorrow(text) ? tomorrow : today;
-
-        const formatDateLabel = (date, lang) => {
-            if (date === tomorrow) {
-                return lang === "english" ? "tomorrow" : "kal ke liye";
-            }
-            return lang === "english" ? "today" : "aaj ke liye";
+        const formatDateLabel = (date) => {
+            if (date === tomorrow) return language === "english" ? "for tomorrow" : "kal ke liye";
+            if (date === today) return language === "english" ? "for today" : "aaj ke liye";
+            // Specific date e.g. 2026-02-25 → "Feb 25"
+            return `for ${new Date(date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
         };
+
+        // ── Parse date from natural language ────────────────
+        // Extracts YYYY-MM-DD from free text, supports: today, tomorrow, "25 feb", "march 5", etc.
+        async function parseDateFromText(text) {
+            const prompt = `Extract the date from: "${text}"
+TODAY: ${today} | TOMORROW: ${tomorrow}
+Reply ONLY with a JSON: { "date": "YYYY-MM-DD" }
+Rules:
+- "today"/"aaj" → "${today}"
+- "tomorrow"/"kal" → "${tomorrow}"  
+- "25 feb"/"feb 25" → "2026-02-25"
+- "march 5" → "2026-03-05"
+- No date mentioned → "${today}"`;
+            try {
+                const r = await callGroq([{ role: "user", content: prompt }], null, false, 50);
+                const raw = r.choices[0].message.content || "{}";
+                const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+                return parsed.date || today;
+            } catch { return today; }
+        }
 
         // ══════════════════════════════════════════════════════
         // ADD TASK FLOW
@@ -385,127 +399,71 @@ app.post("/api/flow-step", async (req, res) => {
                 const parsePrompt = `${lang}
 User wants to add a task. Their message: "${userInput || ''}"
 TODAY: ${today} | TOMORROW: ${tomorrow}
-
-Extract task info if present. Reply with JSON only:
+Extract task info. Reply with JSON only:
 {
-  "title": "task title or null if not given",
+  "title": "task title or null",
   "startTime": "HH:MM 24h or null",
   "endTime": "HH:MM 24h or null",
   "timeOfDay": "morning/afternoon/evening or null",
-  "date": "YYYY-MM-DD — use ${today} by default, use ${tomorrow} if user says tomorrow/kal/next day"
+  "date": "YYYY-MM-DD — ${today} default, ${tomorrow} if tomorrow/kal, specific dates as YYYY-MM-DD"
 }
-
-Rules:
-- "9 to 11 am" → startTime:"09:00", endTime:"11:00", timeOfDay:"morning"
-- "9 to 11 pm" → startTime:"21:00", endTime:"23:00", timeOfDay:"evening"
-- "market jaana 9 am" → title:"market jaana", startTime:"09:00", timeOfDay:"morning"
-- "tomorrow" or "kal" → date:"${tomorrow}"
-- If NO title given → title: null
-- If NO time given → startTime: null, timeOfDay: null (will ask)
+Rules: "9 to 11 am"→09:00,11:00,morning | "9 to 11 pm"→21:00,23:00,evening
 Current time: ${currentTime}`;
 
                 const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 150);
                 let parsed = {};
-                try {
-                    const raw = parseRes.choices[0].message.content || "{}";
-                    parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-                } catch {}
-
-                // Ensure date is always set
+                try { parsed = JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()); } catch {}
                 if (!parsed.date) parsed.date = today;
 
-                const dateLabel = formatDateLabel(parsed.date, language);
-                const isTmrw = parsed.date === tomorrow;
-
-                // If we have ALL info → add task immediately
                 if (parsed.title && parsed.timeOfDay) {
-                    const actions = [{
-                        type: "add_task",
-                        params: {
-                            title: parsed.title,
-                            timeOfDay: parsed.timeOfDay,
-                            startTime: parsed.startTime || null,
-                            endTime: parsed.endTime || null,
-                            date: parsed.date
-                        }
-                    }];
-
-                    let timeStr = "";
-                    if (parsed.startTime && parsed.endTime) timeStr = ` (${parsed.startTime}–${parsed.endTime})`;
-                    else if (parsed.startTime) timeStr = ` at ${parsed.startTime}`;
-
-                    const confirm = {
-                        hindi: `✅ "${parsed.title}"${isTmrw ? ' कल के लिए' : ''} add ho gaya${timeStr}!`,
-                        english: `✅ Added "${parsed.title}" ${isTmrw ? 'for tomorrow' : 'for today'}${timeStr}!`,
-                        hinglish: `✅ "${parsed.title}" ${dateLabel} add ho gaya${timeStr}!`
-                    };
-
                     return res.json({
-                        message: confirm[language] || confirm.hinglish,
-                        actions,
+                        message: language === "english"
+                            ? `✅ Added "${parsed.title}" ${formatDateLabel(parsed.date)}${parsed.startTime ? ` at ${parsed.startTime}` : ''}!`
+                            : `✅ "${parsed.title}" ${formatDateLabel(parsed.date)} add ho gaya${parsed.startTime ? ` at ${parsed.startTime}` : ''}!`,
+                        actions: [{ type: "add_task", params: { title: parsed.title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime || null, endTime: parsed.endTime || null, date: parsed.date } }],
                         nextStep: "done",
-                        quickActions: [
-                            { label: "➕ Add Another", action: "add_task_flow" },
-                            { label: "✅ Mark Done", action: "check_task_flow" },
-                            { label: "📅 Plan Day", action: "plan_day_flow" }
-                        ]
+                        quickActions: [{ label: "➕ Add Another", action: "add_task_flow" }, { label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }]
                     });
                 }
 
-                // If we have title but no time — ask for time, preserve date
-                if (parsed.title && !parsed.timeOfDay) {
+                if (parsed.title) {
                     return res.json({
                         message: language === "english"
-                            ? `Got it! When do you want to do "${parsed.title}"${isTmrw ? ' tomorrow' : ''}? Morning, afternoon, evening, or a specific time like 9am?`
-                            : `"${parsed.title}" — kab karna hai${isTmrw ? ' kal' : ''}? Morning, afternoon, evening, ya specific time jaise 9am?`,
+                            ? `Got it! When do you want to do "${parsed.title}" ${formatDateLabel(parsed.date)}? Morning, afternoon, evening, or a specific time?`
+                            : `"${parsed.title}" — kab karna hai ${formatDateLabel(parsed.date)}? Morning, afternoon, evening, ya specific time?`,
                         nextStep: "ask_time",
                         flow: "add_task_flow",
                         flowData: { title: parsed.title, date: parsed.date }
                     });
                 }
 
-                // No title at all — ask for it, but capture date intent from original msg
-                const detectedDate = getTargetDate(userInput);
                 return res.json({
                     message: language === "english"
-                        ? `What task do you want to add${detectedDate === tomorrow ? ' for tomorrow' : ''}? 🤔`
-                        : language === "hindi"
-                        ? `${detectedDate === tomorrow ? 'कल के लिए ' : ''}कौन सा task add करना है?`
-                        : `${detectedDate === tomorrow ? 'Kal ke liye ' : ''}kya task add karna hai? 🤔`,
+                        ? `What task do you want to add${isTomorrow(userInput) ? ' for tomorrow' : ''}? 🤔`
+                        : `${isTomorrow(userInput) ? 'Kal ke liye ' : ''}kya task add karna hai? 🤔`,
                     nextStep: "ask_title",
                     flow: "add_task_flow",
-                    flowData: { date: detectedDate }
+                    flowData: { date: getTargetDate(userInput) }
                 });
             }
 
             if (step === "ask_title") {
                 const inheritedDate = flowData.date || today;
                 const parsePrompt = `${lang}
-User said: "${userInput}"
-TODAY: ${today} | TOMORROW: ${tomorrow}
-Already detected date from previous message: "${inheritedDate}"
-
-Extract: task title and optionally a time. If user mentions tomorrow/kal in THIS message, override date to ${tomorrow}.
-JSON only: { "title": "...", "startTime": "HH:MM or null", "endTime": "HH:MM or null", "timeOfDay": "morning/afternoon/evening or null", "date": "YYYY-MM-DD" }
-Rules: "9 to 11 am" → startTime:"09:00" endTime:"11:00" timeOfDay:"morning"
-Current time: ${currentTime}`;
+User said: "${userInput}" | TODAY: ${today} | TOMORROW: ${tomorrow} | Inherited date: "${inheritedDate}"
+Extract: { "title": "...", "startTime": "HH:MM or null", "endTime": "HH:MM or null", "timeOfDay": "morning/afternoon/evening or null", "date": "YYYY-MM-DD" }
+JSON only. Current time: ${currentTime}`;
 
                 const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 100);
                 let parsed = { title: userInput, date: inheritedDate };
-                try {
-                    const raw = parseRes.choices[0].message.content || "{}";
-                    parsed = { title: userInput, date: inheritedDate, ...JSON.parse(raw.replace(/```json|```/g, "").trim()) };
-                } catch {}
-
+                try { parsed = { title: userInput, date: inheritedDate, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
                 if (!parsed.date) parsed.date = inheritedDate;
-                const isTmrw = parsed.date === tomorrow;
-                const dateLabel = formatDateLabel(parsed.date, language);
 
                 if (parsed.timeOfDay) {
                     return res.json({
                         message: language === "english"
-                            ? `✅ Added "${parsed.title}" ${isTmrw ? 'for tomorrow' : 'for today'}!`
-                            : `✅ "${parsed.title}" ${dateLabel} add ho gaya!`,
+                            ? `✅ Added "${parsed.title}" ${formatDateLabel(parsed.date)}!`
+                            : `✅ "${parsed.title}" ${formatDateLabel(parsed.date)} add ho gaya!`,
                         actions: [{ type: "add_task", params: { title: parsed.title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime || null, endTime: parsed.endTime || null, date: parsed.date } }],
                         nextStep: "done",
                         quickActions: [{ label: "➕ Add Another", action: "add_task_flow" }, { label: "✅ Mark Done", action: "check_task_flow" }]
@@ -514,8 +472,8 @@ Current time: ${currentTime}`;
 
                 return res.json({
                     message: language === "english"
-                        ? `"${parsed.title}" — morning, afternoon, evening, or specific time like 3pm?`
-                        : `"${parsed.title}" — morning, afternoon, evening, ya specific time jaise 3pm?`,
+                        ? `"${parsed.title}" — morning, afternoon, evening, or specific time?`
+                        : `"${parsed.title}" — morning, afternoon, evening, ya specific time?`,
                     nextStep: "ask_time",
                     flow: "add_task_flow",
                     flowData: { title: parsed.title, date: parsed.date }
@@ -525,29 +483,22 @@ Current time: ${currentTime}`;
             if (step === "ask_time") {
                 const title = flowData.title || "task";
                 const taskDate = flowData.date || today;
-                const isTmrw = taskDate === tomorrow;
-                const dateLabel = formatDateLabel(taskDate, language);
-
-                const timePrompt = `User said: "${userInput}" when asked about time for task "${title}".
-Parse to: { "timeOfDay": "morning/afternoon/evening", "startTime": "HH:MM or null", "endTime": "HH:MM or null" }
-Rules: morning=5am-noon, afternoon=noon-5pm, evening=5pm+. "9 to 11 am"→09:00,11:00,morning. "9 to 11 pm"→21:00,23:00,evening
-JSON only. Current time: ${currentTime}`;
+                const timePrompt = `User said: "${userInput}" for time of "${title}".
+Parse: { "timeOfDay": "morning/afternoon/evening", "startTime": "HH:MM or null", "endTime": "HH:MM or null" }
+morning=5am-noon, afternoon=noon-5pm, evening=5pm+. JSON only. Current: ${currentTime}`;
 
                 const parseRes = await callGroq([{ role: "user", content: timePrompt }], null, false, 100);
                 let parsed = { timeOfDay: "morning", startTime: null, endTime: null };
-                try {
-                    const raw = parseRes.choices[0].message.content || "{}";
-                    parsed = { ...parsed, ...JSON.parse(raw.replace(/```json|```/g, "").trim()) };
-                } catch {}
+                try { parsed = { ...parsed, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
 
-                let timeStr = "";
-                if (parsed.startTime && parsed.endTime) timeStr = ` (${parsed.startTime}–${parsed.endTime})`;
-                else if (parsed.startTime) timeStr = ` at ${parsed.startTime}`;
+                const timeStr = parsed.startTime
+                    ? (parsed.endTime ? ` (${parsed.startTime}–${parsed.endTime})` : ` at ${parsed.startTime}`)
+                    : "";
 
                 return res.json({
                     message: language === "english"
-                        ? `✅ Added "${title}" ${isTmrw ? 'for tomorrow' : ''}${timeStr}!`
-                        : `✅ "${title}" ${dateLabel} add ho gaya${timeStr}!`,
+                        ? `✅ Added "${title}" ${formatDateLabel(taskDate)}${timeStr}!`
+                        : `✅ "${title}" ${formatDateLabel(taskDate)} add ho gaya${timeStr}!`,
                     actions: [{ type: "add_task", params: { title, timeOfDay: parsed.timeOfDay, startTime: parsed.startTime, endTime: parsed.endTime, date: taskDate } }],
                     nextStep: "done",
                     quickActions: [{ label: "➕ Add Another", action: "add_task_flow" }, { label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }]
@@ -556,45 +507,41 @@ JSON only. Current time: ${currentTime}`;
         }
 
         // ══════════════════════════════════════════════════════
-        // ALARM FLOW
+        // ALARM FLOW — now fully date-aware
         // ══════════════════════════════════════════════════════
         if (flow === "alarm_flow") {
             if (step === "start") {
                 const parsePrompt = `${lang}
-User wants to set an alarm. Their message: "${userInput || ''}"
-TODAY: ${year}-${month}-${day} | TOMORROW: ${tomorrow}
+User wants to set an alarm. Message: "${userInput || ''}"
+TODAY: ${today} | TOMORROW: ${tomorrow}
 
 Extract alarm info. JSON only:
 {
   "time": "HH:MM 24h or null",
-  "date": "YYYY-MM-DD or empty string",
+  "date": "YYYY-MM-DD — ${today} default, ${tomorrow} if tomorrow/kal, specific date as YYYY-MM-DD",
   "label": "what alarm is for or 'Alarm'",
-  "ampm_clear": true/false (is AM/PM clear from context?)
+  "repeat": "once/daily/custom",
+  "ampm_clear": true/false
 }
-
 Rules:
-- "5 am" → time:"05:00", ampm_clear:true
-- "5 pm" → time:"17:00", ampm_clear:true  
-- "1 am" → time:"01:00"
-- "1 pm" → time:"13:00"
-- "7" or "7 baje" (no AM/PM) → time:"07:00", ampm_clear:false
-- "tomorrow" → date:"${tomorrow}"
-- "today" → date:"${year}-${month}-${day}"
-- no date mentioned → date:""`;
+- "5 am"→time:"05:00", ampm_clear:true | "5 pm"→"17:00", ampm_clear:true
+- "7" or "7 baje" (no AM/PM)→time:"07:00", ampm_clear:false
+- "tomorrow"/"kal"→date:"${tomorrow}" | "today"/"aaj"→date:"${today}"
+- "25 feb"→date:"2026-02-25" | "march 5"→date:"2026-03-05"
+- no date mentioned → date:"${today}"`;
 
                 const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 150);
                 let parsed = {};
-                try {
-                    const raw = parseRes.choices[0].message.content || "{}";
-                    parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-                } catch {}
+                try { parsed = JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()); } catch {}
+                if (!parsed.date) parsed.date = today;
+                if (!parsed.repeat) parsed.repeat = "once";
 
                 if (parsed.time && parsed.ampm_clear !== false) {
                     return res.json({
                         message: language === "english"
-                            ? `⏰ Alarm set for ${parsed.time}${parsed.date ? ' on ' + parsed.date : ''}! "${parsed.label || 'Alarm'}"`
-                            : `⏰ Alarm set ho gaya ${parsed.time} pe${parsed.date ? ' ' + parsed.date + ' ko' : ''}! "${parsed.label || 'Alarm'}"`,
-                        actions: [{ type: "set_alarm", params: { time: parsed.time, date: parsed.date || "", label: parsed.label || "Alarm", repeat: "once" } }],
+                            ? `⏰ Alarm set for ${parsed.time} ${formatDateLabel(parsed.date)}! "${parsed.label || 'Alarm'}"`
+                            : `⏰ Alarm set ho gaya ${parsed.time} — ${formatDateLabel(parsed.date)}! "${parsed.label || 'Alarm'}"`,
+                        actions: [{ type: "set_alarm", params: { time: parsed.time, date: parsed.date, label: parsed.label || "Alarm", repeat: parsed.repeat } }],
                         nextStep: "done",
                         quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "🔔 Reminder", action: "reminder_flow" }]
                     });
@@ -606,47 +553,50 @@ Rules:
                         message: language === "english" ? `${hour12} AM or PM?` : `${hour12} baje AM hai ya PM?`,
                         nextStep: "ask_ampm",
                         flow: "alarm_flow",
-                        flowData: { time: parsed.time, date: parsed.date || "", label: parsed.label || "Alarm" }
+                        flowData: { time: parsed.time, date: parsed.date, label: parsed.label || "Alarm", repeat: parsed.repeat }
                     });
                 }
 
                 return res.json({
-                    message: language === "english"
-                        ? "What time should I set the alarm? ⏰"
-                        : language === "hindi" ? "किस समय का alarm set करूं? ⏰"
-                        : "Konse time ka alarm set karu? ⏰",
+                    message: language === "english" ? "What time should I set the alarm? ⏰" : "Konse time ka alarm set karu? ⏰",
                     nextStep: "ask_time",
                     flow: "alarm_flow",
-                    flowData: {}
+                    flowData: { date: getTargetDate(userInput) }
                 });
             }
 
             if (step === "ask_time") {
-                const parsePrompt = `User said "${userInput}" for alarm time. TODAY:${year}-${month}-${day} TOMORROW:${tomorrow}
-Parse: { "time":"HH:MM 24h", "date":"YYYY-MM-DD or ''", "label":"Alarm", "ampm_clear":true/false }
-JSON only.`;
+                const inheritedDate = flowData.date || today;
+                const parsePrompt = `User said "${userInput}" for alarm time. TODAY:${today} TOMORROW:${tomorrow} Inherited date:${inheritedDate}
+Parse: { "time":"HH:MM 24h or null", "date":"YYYY-MM-DD", "label":"Alarm", "ampm_clear":true/false }
+If user mentions a date here, override inherited date. JSON only.`;
                 const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 100);
-                let parsed = { time: null, date: "", label: "Alarm", ampm_clear: true };
+                let parsed = { time: null, date: inheritedDate, label: "Alarm", ampm_clear: true };
                 try { parsed = { ...parsed, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
+                if (!parsed.date) parsed.date = inheritedDate;
 
                 if (parsed.time && parsed.ampm_clear !== false) {
                     return res.json({
-                        message: language === "english" ? `⏰ Alarm set for ${parsed.time}!` : `⏰ Alarm set ho gaya ${parsed.time} pe!`,
-                        actions: [{ type: "set_alarm", params: { time: parsed.time, date: parsed.date || "", label: parsed.label || "Alarm", repeat: "once" } }],
+                        message: language === "english"
+                            ? `⏰ Alarm set for ${parsed.time} ${formatDateLabel(parsed.date)}!`
+                            : `⏰ Alarm set ho gaya ${parsed.time} — ${formatDateLabel(parsed.date)}!`,
+                        actions: [{ type: "set_alarm", params: { time: parsed.time, date: parsed.date, label: parsed.label || "Alarm", repeat: "once" } }],
                         nextStep: "done",
                         quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "🔔 Reminder", action: "reminder_flow" }]
                     });
                 }
+
                 if (parsed.time) {
                     const hour12 = parseInt(parsed.time.split(':')[0]) % 12 || 12;
                     return res.json({
                         message: language === "english" ? `${hour12} AM or PM?` : `${hour12} AM hai ya PM?`,
                         nextStep: "ask_ampm",
                         flow: "alarm_flow",
-                        flowData: { time: parsed.time, date: parsed.date || "", label: parsed.label || "Alarm" }
+                        flowData: { time: parsed.time, date: parsed.date, label: parsed.label || "Alarm", repeat: "once" }
                     });
                 }
-                return res.json({ message: "Please give a valid time, like 7am or 9:30pm", nextStep: "ask_time", flow: "alarm_flow", flowData: {} });
+
+                return res.json({ message: "Please give a valid time, like 7am or 9:30pm", nextStep: "ask_time", flow: "alarm_flow", flowData: { date: inheritedDate } });
             }
 
             if (step === "ask_ampm") {
@@ -654,13 +604,15 @@ JSON only.`;
                 const isPM = /pm|raat|sham|evening|shaam|night|दोपहर|शाम/i.test(userInput);
                 let time = flowData.time || "07:00";
                 const [h] = time.split(':').map(Number);
-
                 if (isPM && h < 12) time = `${String(h + 12).padStart(2, '0')}:${time.split(':')[1]}`;
                 else if (isAM && h === 12) time = `00:${time.split(':')[1]}`;
 
+                const alarmDate = flowData.date || today;
                 return res.json({
-                    message: language === "english" ? `⏰ Alarm set for ${time}!` : `⏰ Alarm set ho gaya ${time} pe!`,
-                    actions: [{ type: "set_alarm", params: { time, date: flowData.date || "", label: flowData.label || "Alarm", repeat: "once" } }],
+                    message: language === "english"
+                        ? `⏰ Alarm set for ${time} ${formatDateLabel(alarmDate)}!`
+                        : `⏰ Alarm set ho gaya ${time} — ${formatDateLabel(alarmDate)}!`,
+                    actions: [{ type: "set_alarm", params: { time, date: alarmDate, label: flowData.label || "Alarm", repeat: flowData.repeat || "once" } }],
                     nextStep: "done",
                     quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "🔔 Reminder", action: "reminder_flow" }]
                 });
@@ -668,22 +620,35 @@ JSON only.`;
         }
 
         // ══════════════════════════════════════════════════════
-        // REMINDER FLOW
+        // REMINDER FLOW — now fully date-aware
         // ══════════════════════════════════════════════════════
         if (flow === "reminder_flow") {
             if (step === "start") {
-                const parsePrompt = `User wants reminder. Message: "${userInput || ''}"
-Current time: ${currentTime}
-Parse: { "time":"HH:MM 24h or null", "message":"what to remind or null" }
-"in 5 min" → add 5 mins to ${currentTime}. JSON only.`;
-                const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 100);
+                const parsePrompt = `User wants a reminder. Message: "${userInput || ''}"
+Current time: ${currentTime} | TODAY: ${today} | TOMORROW: ${tomorrow}
+
+Parse: {
+  "time": "HH:MM 24h or null — 'in 5 min' = current+5",
+  "message": "what to remind about or null",
+  "date": "YYYY-MM-DD — ${today} default, ${tomorrow} if tomorrow/kal, specific dates as YYYY-MM-DD"
+}
+Examples:
+- "remind me in 5 min to call mom" → time: current+5, message: "call mom", date: "${today}"
+- "remind me tomorrow 9am meeting" → time: "09:00", message: "meeting", date: "${tomorrow}"
+- "reminder 25 feb 3pm doctor" → time: "15:00", message: "doctor", date: "2026-02-25"
+JSON only.`;
+
+                const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 120);
                 let parsed = {};
                 try { parsed = JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()); } catch {}
+                if (!parsed.date) parsed.date = today;
 
                 if (parsed.time && parsed.message) {
                     return res.json({
-                        message: language === "english" ? `🔔 Reminder set for ${parsed.time}!` : `🔔 Reminder set ho gaya ${parsed.time} pe!`,
-                        actions: [{ type: "set_reminder", params: { time: parsed.time, message: parsed.message } }],
+                        message: language === "english"
+                            ? `🔔 Reminder set for ${parsed.time} ${formatDateLabel(parsed.date)}!`
+                            : `🔔 Reminder set ho gaya ${parsed.time} — ${formatDateLabel(parsed.date)}!`,
+                        actions: [{ type: "set_reminder", params: { time: parsed.time, message: parsed.message, date: parsed.date } }],
                         nextStep: "done",
                         quickActions: [{ label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "➕ Add Task", action: "add_task_flow" }]
                     });
@@ -694,38 +659,50 @@ Parse: { "time":"HH:MM 24h or null", "message":"what to remind or null" }
                         message: language === "english" ? "What should I remind you about?" : "Kya yaad dilana hai?",
                         nextStep: "ask_what",
                         flow: "reminder_flow",
-                        flowData: { time: parsed.time }
+                        flowData: { time: parsed.time, date: parsed.date }
                     });
                 }
 
+                // Have message but no time — ask when
+                const detectedDate = getTargetDate(userInput);
                 return res.json({
-                    message: language === "english" ? "When should I remind you? (e.g. in 10 min, or 3pm)" : "Kab remind karoon? (jaise 10 min mein, ya 3 baje)",
+                    message: language === "english"
+                        ? `When should I remind you${detectedDate === tomorrow ? ' tomorrow' : ''}? (e.g. 10am, in 30 min)`
+                        : `Kab remind karoon${detectedDate === tomorrow ? ' kal' : ''}? (jaise 10 baje, ya 30 min mein)`,
                     nextStep: "ask_when",
                     flow: "reminder_flow",
-                    flowData: { message: parsed.message }
+                    flowData: { message: parsed.message, date: detectedDate }
                 });
             }
 
             if (step === "ask_when") {
-                const parsePrompt = `User said "${userInput}" for reminder time. Current: ${currentTime}
-Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
-                const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 60);
-                let time = currentTime;
-                try { time = JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()).time || currentTime; } catch {}
+                const inheritedDate = flowData.date || today;
+                const parsePrompt = `User said "${userInput}" for reminder time. Current: ${currentTime} | TODAY: ${today} | TOMORROW: ${tomorrow} | Inherited date: ${inheritedDate}
+Parse: { "time": "HH:MM 24h", "date": "YYYY-MM-DD" }
+"in 5 min" = current time + 5 mins. If user mentions a date here, override inherited. JSON only.`;
+                const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 80);
+                let parsed = { time: currentTime, date: inheritedDate };
+                try { parsed = { ...parsed, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
+                if (!parsed.date) parsed.date = inheritedDate;
 
                 const reminderMsg = flowData.message || userInput;
                 return res.json({
-                    message: language === "english" ? `🔔 Reminder set for ${time}!` : `🔔 Reminder set ho gaya ${time} pe!`,
-                    actions: [{ type: "set_reminder", params: { time, message: reminderMsg } }],
+                    message: language === "english"
+                        ? `🔔 Reminder set for ${parsed.time} ${formatDateLabel(parsed.date)}!`
+                        : `🔔 Reminder set ho gaya ${parsed.time} — ${formatDateLabel(parsed.date)}!`,
+                    actions: [{ type: "set_reminder", params: { time: parsed.time, message: reminderMsg, date: parsed.date } }],
                     nextStep: "done",
                     quickActions: [{ label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "➕ Add Task", action: "add_task_flow" }]
                 });
             }
 
             if (step === "ask_what") {
+                const reminderDate = flowData.date || today;
                 return res.json({
-                    message: language === "english" ? `🔔 Reminder set for ${flowData.time}!` : `🔔 Reminder set ho gaya ${flowData.time} pe!`,
-                    actions: [{ type: "set_reminder", params: { time: flowData.time, message: userInput } }],
+                    message: language === "english"
+                        ? `🔔 Reminder set for ${flowData.time} ${formatDateLabel(reminderDate)}!`
+                        : `🔔 Reminder set ho gaya ${flowData.time} — ${formatDateLabel(reminderDate)}!`,
+                    actions: [{ type: "set_reminder", params: { time: flowData.time, message: userInput, date: reminderDate } }],
                     nextStep: "done",
                     quickActions: [{ label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "➕ Add Task", action: "add_task_flow" }]
                 });
@@ -733,7 +710,7 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
         }
 
         // ══════════════════════════════════════════════════════
-        // CHECK TASK FLOW (mark done)
+        // CHECK TASK FLOW
         // ══════════════════════════════════════════════════════
         if (flow === "check_task_flow") {
             const { pending, pendingTasks } = taskContext;
@@ -746,7 +723,6 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
                         quickActions: [{ label: "➕ Add More Tasks", action: "add_task_flow" }]
                     });
                 }
-
                 if (userInput) {
                     const matchedTask = pendingTasks.find(t =>
                         t.title.toLowerCase().includes(userInput.toLowerCase()) ||
@@ -754,19 +730,16 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
                     );
                     if (matchedTask) {
                         return res.json({
-                            message: language === "english" ? `🎉 "${matchedTask.title}" done! Great work!` : `🎉 "${matchedTask.title}" ho gaya! Shabaash!`,
+                            message: language === "english" ? `🎉 "${matchedTask.title}" done!` : `🎉 "${matchedTask.title}" ho gaya! Shabaash!`,
                             actions: [{ type: "complete_task", params: { taskTitle: matchedTask.title } }],
                             nextStep: "done",
-                            quickActions: pending > 1 ? [{ label: "✅ Mark Another Done", action: "check_task_flow" }, { label: "📅 Plan Remaining", action: "plan_day_flow" }] : [{ label: "📅 Plan Day", action: "plan_day_flow" }]
+                            quickActions: pending > 1 ? [{ label: "✅ Mark Another Done", action: "check_task_flow" }] : [{ label: "📅 Plan Day", action: "plan_day_flow" }]
                         });
                     }
                 }
-
                 const taskList = pendingTasks.slice(0, 5).map((t, i) => `${i + 1}. "${t.title}"`).join('\n');
                 return res.json({
-                    message: language === "english"
-                        ? `Which task did you finish?\n${taskList}`
-                        : `Kaun sa task complete hua?\n${taskList}`,
+                    message: language === "english" ? `Which task did you finish?\n${taskList}` : `Kaun sa task complete hua?\n${taskList}`,
                     nextStep: "pick_task",
                     flow: "check_task_flow",
                     flowData: {}
@@ -779,16 +752,14 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
                     userInput.toLowerCase().includes(t.title.toLowerCase()) ||
                     userInput === String(pendingTasks.indexOf(t) + 1)
                 );
-
                 if (matchedTask) {
                     return res.json({
-                        message: language === "english" ? `🎉 "${matchedTask.title}" done! Great work!` : `🎉 "${matchedTask.title}" ho gaya! Shabaash!`,
+                        message: language === "english" ? `🎉 "${matchedTask.title}" done!` : `🎉 "${matchedTask.title}" ho gaya!`,
                         actions: [{ type: "complete_task", params: { taskTitle: matchedTask.title } }],
                         nextStep: "done",
                         quickActions: taskContext.pending > 1 ? [{ label: "✅ Mark Another Done", action: "check_task_flow" }] : [{ label: "📅 Plan Day", action: "plan_day_flow" }]
                     });
                 }
-
                 return res.json({
                     message: language === "english" ? "Which task? Say the name or number." : "Kaun sa task? Naam ya number batao.",
                     nextStep: "pick_task",
@@ -803,34 +774,23 @@ Parse: { "time":"HH:MM 24h" }. "in 5 min" = current+5. JSON only.`;
         // ══════════════════════════════════════════════════════
         if (flow === "plan_day_flow") {
             const { total, pending, pendingTasks } = taskContext;
-
             if (step === "start") {
                 if (total === 0) {
                     return res.json({
-                        message: language === "english"
-                            ? "No tasks yet! Let's add some first. What do you want to accomplish today?"
-                            : "Abhi koi task nahi hai! Pehle kuch add karte hain. Aaj kya karna hai?",
+                        message: language === "english" ? "No tasks yet! What do you want to accomplish today?" : "Abhi koi task nahi hai! Aaj kya karna hai?",
                         nextStep: "done",
                         quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }]
                     });
                 }
-
                 const taskList = pendingTasks.map(t => `"${t.title}"${t.startTime ? ` at ${t.startTime}` : ''}`).join(', ');
-                const planPrompt = `${lang}
-User has these pending tasks: ${taskList}. Current time: ${currentTime}.
-Give a SHORT specific plan (max 4 lines): which task to start NOW and in what order.
-Be direct and encouraging. No long paragraphs.`;
-
-                const planRes = await callGroq([{ role: "user", content: planPrompt }], null, true, 200);
-                const plan = planRes.choices[0].message.content?.trim();
-
+                const planRes = await callGroq([{
+                    role: "user",
+                    content: `${lang}\nPending tasks: ${taskList}. Current time: ${currentTime}.\nShort plan (max 4 lines): which to start NOW and order. Direct and encouraging.`
+                }], null, true, 200);
                 return res.json({
-                    message: plan,
+                    message: planRes.choices[0].message.content?.trim(),
                     nextStep: "done",
-                    quickActions: [
-                        { label: "✅ Mark Task Done", action: "check_task_flow" },
-                        { label: "➕ Add Task", action: "add_task_flow" }
-                    ]
+                    quickActions: [{ label: "✅ Mark Task Done", action: "check_task_flow" }, { label: "➕ Add Task", action: "add_task_flow" }]
                 });
             }
         }
@@ -855,7 +815,6 @@ Be direct and encouraging. No long paragraphs.`;
                     flowData: {}
                 });
             }
-
             if (step === "write_note") {
                 return res.json({
                     message: language === "english" ? "📝 Added to your notes!" : "📝 Notes mein add ho gaya!",
@@ -866,15 +825,10 @@ Be direct and encouraging. No long paragraphs.`;
             }
         }
 
-        // Fallback
         return res.json({
-            message: "Hmm, let me help you with that!",
+            message: "Hmm, let me help you!",
             nextStep: "done",
-            quickActions: [
-                { label: "➕ Add Task", action: "add_task_flow" },
-                { label: "⏰ Set Alarm", action: "alarm_flow" },
-                { label: "📅 Plan Day", action: "plan_day_flow" }
-            ]
+            quickActions: [{ label: "➕ Add Task", action: "add_task_flow" }, { label: "⏰ Set Alarm", action: "alarm_flow" }, { label: "📅 Plan Day", action: "plan_day_flow" }]
         });
 
     } catch (error) {
@@ -883,48 +837,40 @@ Be direct and encouraging. No long paragraphs.`;
     }
 });
 
-// ─── POST /api/proactive-monitor ───────────────────────────
+// ─── Proactive monitor ────────────────────────────────────
 app.post("/api/proactive-monitor", async (req, res) => {
     try {
         const { language, taskContext, currentTime, monitorType } = req.body;
         const { total, completed, pending, pendingTasks } = taskContext;
-
         if (total === 0) return res.json({ shouldNotify: false });
 
         const prompts = {
             morning_kickoff: {
                 hinglish: `Good morning! Aaj ${pending} tasks pending hain. ${pendingTasks[0] ? `"${pendingTasks[0].title}" se shuru karo!` : 'Shuru karo!'}`,
-                english: `Good morning! You have ${pending} tasks today. Start with "${pendingTasks[0]?.title || 'your first task'}"!`,
+                english: `Good morning! ${pending} tasks today. Start with "${pendingTasks[0]?.title || 'your first task'}"!`,
                 hindi: `सुप्रभात! आज ${pending} tasks बाकी हैं।`
             },
             overdue_check: {
                 hinglish: `${pending} tasks abhi bhi pending hain. Koi ek complete kar lo!`,
-                english: `You still have ${pending} tasks pending. Can you finish one now?`,
+                english: `${pending} tasks still pending. Can you finish one now?`,
                 hindi: `${pending} tasks अभी भी बाकी हैं।`
             },
             end_of_day: {
-                hinglish: `Din khatam ho raha hai! ${completed}/${total} tasks complete kiye. Baaki kal ke liye plan karo?`,
-                english: `Day's ending! ${completed}/${total} tasks done. Plan the rest for tomorrow?`,
-                hindi: `दिन खत्म होने वाला है! ${completed}/${total} tasks पूरे हुए।`
+                hinglish: `Din khatam! ${completed}/${total} complete kiye. Baaki kal ke liye plan karo?`,
+                english: `Day's ending! ${completed}/${total} done. Plan the rest for tomorrow?`,
+                hindi: `दिन खत्म! ${completed}/${total} पूरे हुए।`
             }
         };
 
-        const msg = prompts[monitorType]?.[language] || prompts[monitorType]?.hinglish;
-
         res.json({
             shouldNotify: true,
-            message: msg,
-            quickActions: [
-                { label: "✅ Mark Done", action: "check_task_flow" },
-                { label: "📅 View Plan", action: "plan_day_flow" }
-            ]
+            message: prompts[monitorType]?.[language] || prompts[monitorType]?.hinglish,
+            quickActions: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 View Plan", action: "plan_day_flow" }]
         });
-    } catch (e) {
-        res.json({ shouldNotify: false });
-    }
+    } catch (e) { res.json({ shouldNotify: false }); }
 });
 
-// ─── Static endpoints ───────────────────────────────────────
+// ─── Static endpoints ─────────────────────────────────────
 app.post("/api/task-reminder", async (req, res) => {
     const { task, language } = req.body;
     const msgs = {
@@ -938,7 +884,7 @@ app.post("/api/task-reminder", async (req, res) => {
 app.post("/api/task-checkin", async (req, res) => {
     const { task, language } = req.body;
     const msgs = {
-        hinglish: `🤔 "${task.title}" ho gaya kya? Agar nahi to main help kar sakta hoon!`,
+        hinglish: `🤔 "${task.title}" ho gaya kya?`,
         hindi: `🤔 "${task.title}" हो गया क्या?`,
         english: `🤔 Did you finish "${task.title}"?`
     };
@@ -947,7 +893,7 @@ app.post("/api/task-checkin", async (req, res) => {
 
 app.post("/api/proactive-checkin", async (req, res) => {
     const { type, language, taskContext } = req.body;
-    const { total, completed, pending } = taskContext;
+    const { total, completed } = taskContext;
     const msgs = {
         morning: { hinglish: `Morning! Aaj ${total} tasks hain. Kaunsa pehle?`, english: `Morning! ${total} tasks today. Which one first?`, hindi: `सुप्रभात! ${total} tasks आज।` },
         evening: { hinglish: `Shaam ho gayi! ${completed}/${total} done.`, english: `Evening! ${completed}/${total} done.`, hindi: `शाम हो गयी! ${completed}/${total} पूरे।` }
