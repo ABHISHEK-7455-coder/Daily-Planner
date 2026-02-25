@@ -136,3 +136,287 @@
         
     }
 }
+
+
+
+/* hgfhfhd */
+/* ─── EXISTING HEADER STYLES (preserved) ───────────────────── */
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 48px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 9999;
+  position: relative;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
+.home-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #fde047 0%, #d8b4fe 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(216,180,254,0.35);
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-family: 'Fredoka', 'Quicksand', sans-serif;
+}
+
+.home-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.header-nav-link {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #4a5568;
+  cursor: pointer;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Quicksand', sans-serif;
+  letter-spacing: 0.5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+.header-nav-link:hover {
+  color: #7c3aed;
+  background: rgba(216,180,254,0.15);
+}
+
+.header-login-btn {
+  background: linear-gradient(135deg, #fde047, #d8b4fe);
+  color: #2d2d2d !important;
+  padding: 8px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(216,180,254,0.3);
+}
+.header-login-btn:hover {
+  background: linear-gradient(135deg, #fcd34d, #c084fc) !important;
+  box-shadow: 0 4px 14px rgba(216,180,254,0.45) !important;
+}
+
+/* ─── AVATAR WRAPPER ────────────────────────────────────────── */
+.header-avatar-wrap {
+  position: relative;
+}
+
+/* ─── AVATAR BUTTON ─────────────────────────────────────────── */
+.header-avatar-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #fde047, #d8b4fe) border-box;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  box-shadow: 0 3px 12px rgba(216,180,254,0.3);
+  overflow: hidden;
+}
+.header-avatar-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 5px 20px rgba(216,180,254,0.45);
+}
+
+/* Avatar image (Google / OAuth) */
+.header-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Initials fallback */
+.header-avatar-initials {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fredoka', 'Quicksand', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Online indicator dot */
+.header-avatar-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  background: #4ade80;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 0 0 rgba(74,222,128,0.5);
+  animation: avatarPulse 2.5s ease-in-out infinite;
+}
+@keyframes avatarPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+  50%       { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
+
+/* ─── USER DROPDOWN MENU ────────────────────────────────────── */
+.header-user-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 240px;
+  background: white;
+  border-radius: 18px;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.12),
+    0 4px 16px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.06);
+  overflow: hidden;
+  z-index: 10000;
+  animation: menuIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Profile section */
+.user-menu-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fdf4ff 0%, #fffbf0 100%);
+}
+
+/* Large avatar in menu */
+.user-menu-avatar-lg {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 2px solid rgba(216,180,254,0.4);
+}
+
+.user-menu-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+  font-family: 'Quicksand', sans-serif;
+  line-height: 1.3;
+}
+
+.user-menu-email {
+  font-size: 0.76rem;
+  color: #aaa;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+/* Divider */
+.user-menu-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 0;
+}
+
+/* Menu items */
+.user-menu-item {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.user-menu-item i {
+  width: 16px;
+  text-align: center;
+  color: #bbb;
+  font-size: 13px;
+  transition: color 0.15s;
+}
+.user-menu-item:hover {
+  background: #f8f8f8;
+  color: #2d2d2d;
+}
+.user-menu-item:hover i { color: #7c3aed; }
+
+.user-menu-signout {
+  color: #e17055;
+}
+.user-menu-signout i { color: #e17055; }
+.user-menu-signout:hover {
+  background: #fff5f5 !important;
+  color: #d63031;
+}
+.user-menu-signout:hover i { color: #d63031 !important; }
+
+/* ─── ALARM DROPDOWN ────────────────────────────────────────── */
+.alarm-dropdown {
+  position: absolute;
+  top: 72px;
+  right: 120px;
+  width: 340px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  z-index: 9999;
+  animation: menuIn 0.25s ease both;
+}
+
+@media (max-width: 600px) {
+  .home-header { padding: 14px 20px; }
+  .alarm-dropdown { right: 0; width: 98vw; }
+  .header-user-menu { right: -10px; }
+  .home-nav { gap: 12px; }
+}
