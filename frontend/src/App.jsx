@@ -17,11 +17,12 @@
 // }
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
+// import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Today from "./pages/Today";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+import { AuthProvider } from "./Context/Authcontext";
 
 export default function App() {
   return (

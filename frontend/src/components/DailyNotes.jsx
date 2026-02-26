@@ -1,3 +1,9 @@
+// DailyNotes.jsx — AUTH CHANGE: userId-scoped storage key
+// Your original file exactly, with ONE change:
+//   OLD: localStorage key = "daily-notes"
+//   NEW: localStorage key = "daily-notes-{userId}"
+// So User A's notes never appear for User B on the same browser
+
 import React, {
     useEffect,
     useState,
@@ -9,19 +15,21 @@ import "./DailyNotes.css";
 
 const getDateKey = (date) => date.toISOString().slice(0, 10);
 
-const DailyNotes = forwardRef(({ currentDate }, ref) => {
+// ── AUTH CHANGE: accepts userId prop
+const DailyNotes = forwardRef(({ currentDate, userId = "anon" }, ref) => {
     const dayKey = getDateKey(currentDate);
+
+    // ── AUTH CHANGE: notes key scoped to userId
+    const notesKey = `daily-notes-${userId}`;
 
     const [note, setNote] = useState("");
     const [isOpen, setIsOpen] = useState(false);
 
-    /* ---------- POSITIONS ---------- */
     const [btnPos, setBtnPos] = useState(null);
     const [panelPos, setPanelPos] = useState(null);
 
     const textareaRef = useRef(null);
 
-    /* ---------- DRAG ENGINE (FIXED SMOOTH) ---------- */
     const dragRef = useRef({
         dragging: false,
         offsetX: 0,
@@ -49,7 +57,6 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
             let newX = ev.clientX - dragRef.current.offsetX;
             let newY = ev.clientY - dragRef.current.offsetY;
 
-            /* keep inside viewport */
             const maxX = window.innerWidth - dragRef.current.width;
             const maxY = window.innerHeight - dragRef.current.height;
 
@@ -69,24 +76,24 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
         document.addEventListener("mouseup", onUp);
     };
 
-    /* ---------- LOAD NOTE ---------- */
+    // ── AUTH CHANGE: load from notesKey instead of "daily-notes"
     useEffect(() => {
-        const raw = localStorage.getItem("daily-notes");
+        const raw = localStorage.getItem(notesKey);
         const allNotes = raw ? JSON.parse(raw) : {};
         setNote(allNotes[dayKey] || "");
-    }, [dayKey]);
+    }, [dayKey, notesKey]);
 
-    /* ---------- SAVE NOTE ---------- */
+    // ── AUTH CHANGE: save to notesKey instead of "daily-notes"
     const saveNote = () => {
-        const raw = localStorage.getItem("daily-notes");
+        const raw = localStorage.getItem(notesKey);
         const allNotes = raw ? JSON.parse(raw) : {};
         allNotes[dayKey] = note;
-        localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+        localStorage.setItem(notesKey, JSON.stringify(allNotes));
     };
 
-    /* ---------- VOICE SUPPORT ---------- */
+    // ── AUTH CHANGE: updateFromVoice uses notesKey
     const updateFromVoice = (content, mode = "append") => {
-        const raw = localStorage.getItem("daily-notes");
+        const raw = localStorage.getItem(notesKey);
         const allNotes = raw ? JSON.parse(raw) : {};
 
         if (mode === "append") {
@@ -114,14 +121,13 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
             setNote(content);
         }
 
-        localStorage.setItem("daily-notes", JSON.stringify(allNotes));
+        localStorage.setItem(notesKey, JSON.stringify(allNotes));
     };
 
     useImperativeHandle(ref, () => ({
         updateFromVoice
     }));
 
-    /* ---------- STYLE HELPER ---------- */
     const styleFromPos = (pos, fallback) =>
         pos
             ? { position: "fixed", left: pos.x, top: pos.y }
@@ -129,7 +135,6 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
 
     return (
         <>
-            {/* 🔘 FLOATING BUTTON */}
             <button
                 className="daily-notes-fab"
                 style={styleFromPos(btnPos, { bottom: 24, right: 24 })}
@@ -139,7 +144,6 @@ const DailyNotes = forwardRef(({ currentDate }, ref) => {
                 📝
             </button>
 
-            {/* 📒 PANEL */}
             {isOpen && (
                 <aside
                     className="daily-journal"
