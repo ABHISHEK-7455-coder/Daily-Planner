@@ -446,17 +446,25 @@ import { useEffect, useRef, useCallback, createContext, useContext, useState } f
 
 const TabSessionContext = createContext(null);
 
-function getOrCreateTabId() {
-  let id = sessionStorage.getItem("buddy-tab-id");
+// ── CHANGE 1: tabId now includes userId so Tab A (user_abc) ≠ Tab A (user_xyz)
+function getOrCreateTabId(userId) {
+  const key = `buddy-tab-id-${userId}`;
+  let id = sessionStorage.getItem(key);
   if (!id) {
-    id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    sessionStorage.setItem("buddy-tab-id", id);
+    id = `tab-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(key, id);
   }
   return id;
 }
 
-export function TabSyncProvider({ children }) {
-  const tabId = useRef(getOrCreateTabId()).current;
+// ── CHANGE 2: TabSyncProvider accepts userId prop
+export function TabSyncProvider({ children, userId = "anon" }) {
+  const tabId = useRef(getOrCreateTabId(userId)).current;
+
+  // ── CHANGE 3: BroadcastChannel name includes userId
+  // User A's tabs NEVER hear User B's broadcasts — completely isolated
+  const channelName = `buddy-tab-sync-${userId}`;
+
   const channelRef = useRef(null);
   const isClosedRef = useRef(false);
   const [otherTabDates, setOtherTabDates] = useState({});
@@ -465,7 +473,7 @@ export function TabSyncProvider({ children }) {
   useEffect(() => {
     isClosedRef.current = false;
 
-    const channel = new BroadcastChannel("buddy-tab-sync");
+    const channel = new BroadcastChannel(channelName);
     channelRef.current = channel;
 
     const safePost = (msg) => {
@@ -474,7 +482,7 @@ export function TabSyncProvider({ children }) {
       }
     };
 
-    safePost({ type: "TAB_HELLO", tabId, date: sessionStorage.getItem("buddy-current-date") || "" });
+    safePost({ type: "TAB_HELLO", tabId, date: sessionStorage.getItem(`buddy-current-date-${userId}`) || "" });
 
     channel.onmessage = (event) => {
       const { type, tabId: senderId, date } = event.data;
@@ -485,7 +493,7 @@ export function TabSyncProvider({ children }) {
         case "TAB_DATE_CHANGE":
           setOtherTabDates(prev => ({ ...prev, [senderId]: date }));
           if (type === "TAB_HELLO") {
-            safePost({ type: "TAB_DATE_CHANGE", tabId, date: sessionStorage.getItem("buddy-current-date") || "" });
+            safePost({ type: "TAB_DATE_CHANGE", tabId, date: sessionStorage.getItem(`buddy-current-date-${userId}`) || "" });
           }
           break;
         case "TAB_GONE":
@@ -509,14 +517,15 @@ export function TabSyncProvider({ children }) {
       channel.close();
       channelRef.current = null;
     };
-  }, [tabId]);
+  }, [tabId, channelName, userId]);
 
   const broadcastDateChange = useCallback((date) => {
-    sessionStorage.setItem("buddy-current-date", date);
+    // ── CHANGE 4: date session key includes userId
+    sessionStorage.setItem(`buddy-current-date-${userId}`, date);
     if (!isClosedRef.current && channelRef.current) {
       try { channelRef.current.postMessage({ type: "TAB_DATE_CHANGE", tabId, date }); } catch (_) {}
     }
-  }, [tabId]);
+  }, [tabId, userId]);
 
   const broadcastTaskChange = useCallback((changeType, payload = {}) => {
     if (!isClosedRef.current && channelRef.current) {
@@ -560,7 +569,8 @@ export function TabSyncProvider({ children }) {
       await Notification.requestPermission();
     }
 
-    const storageKey = `pending-reminders-${tabId}`;
+    // ── CHANGE 5: reminder storage key includes userId — no cross-user reminder leaks
+    const storageKey = `pending-reminders-${userId}-${tabId}`;
     const reminders = JSON.parse(localStorage.getItem(storageKey) || "[]");
     const reminder = {
       id: `${tabId}-${Date.now()}`, tabId, time,
@@ -577,10 +587,10 @@ export function TabSyncProvider({ children }) {
     setTimeout(async () => {
       await fireNotification(reminderMsg, reminder.id, storageKey);
     }, delay);
-  }, [tabId]);
+  }, [tabId, userId]);
 
   const checkPendingReminders = useCallback(() => {
-    const storageKey = `pending-reminders-${tabId}`;
+    const storageKey = `pending-reminders-${userId}-${tabId}`;
     const now = new Date();
     const stored = JSON.parse(localStorage.getItem(storageKey) || "[]");
     const stillPending = [];
@@ -596,9 +606,9 @@ export function TabSyncProvider({ children }) {
       }
     }
     localStorage.setItem(storageKey, JSON.stringify(stillPending));
-  }, [tabId]);
+  }, [tabId, userId]);
 
-  const value = { tabId, otherTabDates, broadcastDateChange, broadcastTaskChange, onSharedDataChanged, scheduleReminder, checkPendingReminders };
+  const value = { tabId, userId, otherTabDates, broadcastDateChange, broadcastTaskChange, onSharedDataChanged, scheduleReminder, checkPendingReminders };
 
   return <TabSessionContext.Provider value={value}>{children}</TabSessionContext.Provider>;
 }
@@ -609,8 +619,9 @@ export function useTabSession() {
   return ctx;
 }
 
-export function useSessionSafeChat(tabId) {
-  const storageKey = `chat-messages-${tabId}`;
+// ── CHANGE 6: chat key includes userId — User A and User B chat never mixes
+export function useSessionSafeChat(tabId, userId = "anon") {
+  const storageKey = `chat-messages-${userId}-${tabId}`;
   const load = () => { try { return JSON.parse(sessionStorage.getItem(storageKey) || "[]"); } catch { return []; } };
   const [messages, setMessagesState] = useState(load);
 
@@ -632,6 +643,7 @@ export function useSessionSafeChat(tabId) {
   return { messages, setMessages, clearMessages };
 }
 
+// ── UNCHANGED: useSessionSafeFlow — pure React state, no storage keys needed
 export function useSessionSafeFlow() {
   const [activeFlow, setActiveFlowState] = useState(null);
   const [flowStep,   setFlowStepState]   = useState(null);
@@ -651,6 +663,7 @@ export function useSessionSafeFlow() {
   return { activeFlow, setActiveFlow, activeFlowRef, flowStep, setFlowStep, flowStepRef, flowData, setFlowData, flowDataRef, resetFlow };
 }
 
+// ── UNCHANGED: useOutOfSyncDetector
 export function useOutOfSyncDetector(messages, activeFlow, flowStep) {
   const [isOutOfSync, setIsOutOfSync] = useState(false);
   const [reason, setReason] = useState(null);

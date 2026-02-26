@@ -1,15 +1,9 @@
-// ChatBuddy.jsx — RACE CONDITION FIX
-//
-// ROOT CAUSE OF TASK NOT APPEARING:
-// ChatBuddy was calling broadcastTaskChange() immediately after onAddTask().
-// onAddTask() calls setTasks() which is ASYNC (React state update).
-// broadcastTaskChange() fires SYNC → triggers reReadDayTasks() in Today.jsx →
-// reads localStorage BEFORE the save useEffect has run → gets old data →
-// calls setTasks(oldData) → OVERWRITES the newly added task → task disappears.
-//
-// FIX: Remove broadcastTaskChange() calls from ChatBuddy entirely.
-// Today.jsx's handleAddTaskForDate already calls broadcastChange() itself
-// AFTER writing to localStorage, so cross-tab sync still works correctly.
+// ChatBuddy.jsx — AUTH CHANGE: one line only
+// The ONLY difference from your working doc 1:
+//   OLD: useSessionSafeChat(tabId)
+//   NEW: useSessionSafeChat(tabId, userId)   ← userId from props
+// This scopes chat history to "chat-messages-{userId}-{tabId}"
+// so User A and User B NEVER share chat history on same browser
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./ChatBuddy.css";
@@ -20,11 +14,12 @@ import {
   useOutOfSyncDetector,
 } from "./Usetabsession";
 
-const API_URL =  "http://localhost:3001" || import.meta.env.VITE_BACKEND_URL;
+const API_URL = "http://localhost:3001" || import.meta.env.VITE_BACKEND_URL;
 
 export default function AdvancedBuddy({
   currentDate,
   tasks,
+  userId,        // ── AUTH CHANGE: new prop (passed from Today.jsx)
   onAddTask,
   onCompleteTask,
   onDeleteTask,
@@ -39,9 +34,10 @@ export default function AdvancedBuddy({
     checkPendingReminders,
   } = useTabSession();
 
-  const { messages, setMessages, clearMessages } = useSessionSafeChat(tabId);
+  // ── AUTH CHANGE: pass userId so chat key = "chat-messages-{userId}-{tabId}"
+  // Everything else in this file is identical to your working version
+  const { messages, setMessages, clearMessages } = useSessionSafeChat(tabId, userId || "anon");
 
-  // Wrap setMessages to update ref synchronously (prevents stale closure)
   const messagesRef = useRef(messages);
   const setMessagesWithRef = useCallback((updater) => {
     setMessages((prev) => {
@@ -189,7 +185,6 @@ export default function AdvancedBuddy({
     return () => recognitionRef.current?.stop();
   }, [language]);
 
-  // ─── HELPERS ─────────────────────────────────────────────
   const getTaskContext = () => {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
@@ -395,7 +390,6 @@ export default function AdvancedBuddy({
     setShowProactivePopup(true);
   };
 
-  // ─── SEND MESSAGE ─────────────────────────────────────────
   const handleSendMessage = async (text) => {
     if (!text.trim()) return;
 
@@ -409,7 +403,6 @@ export default function AdvancedBuddy({
     }
 
     const userMessage = { role: "user", content: text, timestamp: new Date() };
-    // Capture current messages BEFORE updating state
     const currentMessages = messagesRef.current.filter(m => !m.interim);
     setMessagesWithRef(prev => [...prev.filter(m => !m.interim), userMessage]);
     setInputText("");
@@ -444,18 +437,11 @@ export default function AdvancedBuddy({
     } finally { setIsProcessing(false); }
   };
 
-  // ─── ACTION HANDLER ───────────────────────────────────────
-  // KEY RULE: ChatBuddy does NOT call broadcastTaskChange for add/complete/delete.
-  // Today.jsx's handleAddTaskForDate, toggleTask, deleteTask all call
-  // broadcastChange() themselves AFTER writing to localStorage.
-  // If ChatBuddy also broadcasts, it triggers reReadDayTasks() which reads
-  // stale localStorage (before the save useEffect runs) → overwrites the task.
   const handleAction = async (action) => {
     console.log(`[${tabId}] 🎯 Action:`, action);
 
     switch (action.type) {
 
-      // Alarm: convert 24h → 12h for AlarmPlanner
       case "set_alarm":
         if (onAddAlarm) {
           const [hRaw, mRaw] = (action.params.time || "07:00").split(":").map(Number);
@@ -476,7 +462,6 @@ export default function AdvancedBuddy({
         await scheduleReminder(action.params.time, action.params.message, action.params.date);
         break;
 
-      // NO broadcastTaskChange here — Today.jsx handles its own broadcast
       case "add_task": {
         const title = action.params.title?.trim();
         if (!title) {
@@ -490,25 +475,19 @@ export default function AdvancedBuddy({
           action.params.endTime || null,
           action.params.date || null
         );
-        // ← NO broadcastTaskChange() call here — would cause race condition
         break;
       }
 
-      // NO broadcastTaskChange here — Today.jsx handles its own broadcast
       case "complete_task": {
         const taskToComplete = tasks.find(t =>
           t.title.toLowerCase() === action.params.taskTitle?.toLowerCase() ||
           t.title.toLowerCase().includes(action.params.taskTitle?.toLowerCase() || "") ||
           (action.params.taskTitle?.toLowerCase() || "").includes(t.title.toLowerCase())
         );
-        if (taskToComplete) {
-          onCompleteTask(taskToComplete.id);
-          // ← NO broadcastTaskChange() call here
-        }
+        if (taskToComplete) onCompleteTask(taskToComplete.id);
         break;
       }
 
-      // NO broadcastTaskChange here — Today.jsx handles its own broadcast
       case "delete_task": {
         let taskToDelete = tasks.find(t =>
           t.title.toLowerCase() === action.params.taskTitle?.toLowerCase() ||
@@ -519,10 +498,7 @@ export default function AdvancedBuddy({
           const words = action.params.taskTitle?.toLowerCase().split(" ") || [];
           taskToDelete = tasks.find(t => words.some(w => w.length > 2 && t.title.toLowerCase().includes(w)));
         }
-        if (taskToDelete) {
-          onDeleteTask(taskToDelete.id);
-          // ← NO broadcastTaskChange() call here
-        }
+        if (taskToDelete) onDeleteTask(taskToDelete.id);
         break;
       }
 
