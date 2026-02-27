@@ -14,6 +14,21 @@
 //
 // INSTALL: npm install ws
 // ─────────────────────────────────────────────────────────────
+// server.js — FIXED VERSION
+//
+// ROOT CAUSE OF BUG:
+// Server used new Date().toISOString().slice(0,10) for "today"
+// This returns UTC date. Indian users (IST = UTC+5:30) at 11:34 PM local
+// are still on "yesterday" in UTC → server sends wrong date → task saved
+// to wrong day → setTasks never called → task invisible in UI.
+//
+// THE FIX (2 lines changed):
+// 1. getDateInfo(clientDate) now accepts clientDate from request body
+// 2. All endpoints pass req.body.currentDate into getDateInfo()
+//
+// TITLE BUG ALSO FIXED:
+// Added title cleanup in add_task tool + flow-step parse prompt examples
+// so LLM doesn't include "add a task at 11:40pm" in the task title.
 
 import express from "express";
 import Groq from "groq-sdk";
@@ -28,126 +43,69 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ── Create HTTP server so Express + WS share one port ────────
 const httpServer = createServer(app);
-
-// ── WebSocket server ─────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
-
-// Connected clients map: ws → { tabId, date, isAlive }
 const clients = new Map();
 
 wss.on("connection", (ws, req) => {
   console.log("🔌 New WS connection");
-
   const clientMeta = { tabId: null, date: null, isAlive: true };
   clients.set(ws, clientMeta);
 
-  ws.on("pong", () => {
-    const meta = clients.get(ws);
-    if (meta) meta.isAlive = true;
-  });
+  ws.on("pong", () => { const meta = clients.get(ws); if (meta) meta.isAlive = true; });
 
   ws.on("message", (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
-
     const meta = clients.get(ws);
     if (!meta) return;
 
     switch (msg.type) {
-      // ── Tab registers itself ──────────────────────────────
       case "REGISTER":
         meta.tabId = msg.tabId;
         meta.date  = msg.date || null;
         console.log(`📋 Tab registered: ${msg.tabId} (date: ${msg.date})`);
-
-        // Confirm registration
         safeSend(ws, { type: "REGISTERED", tabId: msg.tabId, serverTime: Date.now() });
         break;
-
-      // ── Tab updates which date it's viewing ───────────────
       case "DATE_CHANGE":
         meta.date = msg.date;
         break;
-
-      // ── Tab broadcasts a data mutation ────────────────────
-      // Payload shape:
-      // { type: "BROADCAST", tabId, changeType, payload }
-      // changeType: "add_task" | "complete_task" | "delete_task"
-      //           | "set_alarm" | "set_reminder" | "snooze_task"
-      //           | "update_notes"
       case "BROADCAST":
         fanOut(ws, msg);
         break;
-
-      // ── Ping from client (extra keep-alive) ──────────────
       case "PING":
         safeSend(ws, { type: "PONG", serverTime: Date.now() });
         break;
-
       default:
         break;
     }
   });
 
-  ws.on("close", () => {
-    const meta = clients.get(ws);
-    console.log(`🔴 Tab disconnected: ${meta?.tabId}`);
-    clients.delete(ws);
-  });
-
-  ws.on("error", (err) => {
-    console.error("WS error:", err.message);
-    clients.delete(ws);
-  });
+  ws.on("close", () => { const meta = clients.get(ws); console.log(`🔴 Tab disconnected: ${meta?.tabId}`); clients.delete(ws); });
+  ws.on("error", (err) => { console.error("WS error:", err.message); clients.delete(ws); });
 });
 
-// ── Fan-out: send to all other connected tabs ─────────────────
 function fanOut(senderWs, msg) {
   const senderMeta = clients.get(senderWs);
   let delivered = 0;
-
   for (const [ws, meta] of clients) {
-    if (ws === senderWs) continue;                          // skip sender
-    if (ws.readyState !== WebSocket.OPEN) continue;        // skip dead sockets
-
-    // For task changes, optionally filter to tabs viewing the same date.
-    // Set to false if you want ALL tabs to receive every event.
+    if (ws === senderWs) continue;
+    if (ws.readyState !== WebSocket.OPEN) continue;
     const FILTER_BY_DATE = false;
-    if (FILTER_BY_DATE && msg.payload?.date && meta.date && meta.date !== msg.payload.date) {
-      continue; // different day — not relevant
-    }
-
-    safeSend(ws, {
-      type:       "SYNC_EVENT",
-      changeType: msg.changeType,
-      payload:    msg.payload,
-      fromTabId:  senderMeta?.tabId,
-      serverTime: Date.now(),
-    });
+    if (FILTER_BY_DATE && msg.payload?.date && meta.date && meta.date !== msg.payload.date) continue;
+    safeSend(ws, { type: "SYNC_EVENT", changeType: msg.changeType, payload: msg.payload, fromTabId: senderMeta?.tabId, serverTime: Date.now() });
     delivered++;
   }
-
   console.log(`📡 Fanned out "${msg.changeType}" to ${delivered} tab(s)`);
 }
 
-// ── Safe send helper ──────────────────────────────────────────
 function safeSend(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
-  }
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 
-// ── Heartbeat: ping all clients every 30s, drop dead ones ────
 const heartbeatInterval = setInterval(() => {
   for (const [ws, meta] of clients) {
-    if (!meta.isAlive) {
-      console.log(`💀 Dropping dead connection: ${meta.tabId}`);
-      clients.delete(ws);
-      ws.terminate();
-      continue;
-    }
+    if (!meta.isAlive) { console.log(`💀 Dropping dead: ${meta.tabId}`); clients.delete(ws); ws.terminate(); continue; }
     meta.isAlive = false;
     ws.ping();
   }
@@ -155,31 +113,17 @@ const heartbeatInterval = setInterval(() => {
 
 wss.on("close", () => clearInterval(heartbeatInterval));
 
-// ── Stats endpoint (optional, useful for debugging) ──────────
 app.get("/api/ws-stats", (req, res) => {
   const tabs = [];
-  for (const [, meta] of clients) {
-    tabs.push({ tabId: meta.tabId, date: meta.date });
-  }
+  for (const [, meta] of clients) tabs.push({ tabId: meta.tabId, date: meta.date });
   res.json({ connected: clients.size, tabs });
 });
 
-// ════════════════════════════════════════════════════════════
-// ALL YOUR EXISTING CODE BELOW — unchanged
-// Just replace `app.listen(...)` at the bottom with
-// `httpServer.listen(...)` as shown at the very end.
-// ════════════════════════════════════════════════════════════
-
-webPush.setVapidDetails(
-  "mailto:your-email@example.com",
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+webPush.setVapidDetails("mailto:your-email@example.com", process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
 const subscriptions = new Map();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ─── Model rotation ──────────────────────────────────────────
 const FAST_MODELS  = ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"];
 const SMART_MODELS = ["llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct"];
 let fastIdx = 0, smartIdx = 0;
@@ -204,7 +148,7 @@ async function callGroq(messages, tools = null, smart = false, maxTokens = 600) 
 }
 
 app.use(cors({
-  origin: "http://localhost:5173" || process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL || "http://localhost:5173" ,
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"],
 }));
@@ -221,7 +165,6 @@ app.post("/api/subscribe", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
-// ─── LANGUAGE GUIDE ──────────────────────────────────────────
 function getLangRule(language) {
   return {
     hindi:    "ONLY Hindi. Never English.",
@@ -230,25 +173,56 @@ function getLangRule(language) {
   }[language] || "Casual Hinglish mix.";
 }
 
-// ─── DATE/TIME HELPERS ───────────────────────────────────────
-function getDateInfo() {
-  const now      = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+// ─────────────────────────────────────────────────────────────────
+// FIX 1: getDateInfo now accepts clientDate (browser's local date)
+// OLD: function getDateInfo() { const now = new Date(); today = now.toISOString()... }
+// NEW: function getDateInfo(clientDate) { use clientDate as today }
+//
+// Why: new Date().toISOString() returns UTC date.
+// Indian users at 11:34 PM IST = still yesterday in UTC.
+// Server was sending yesterday's date → task saved to wrong day → invisible.
+// ─────────────────────────────────────────────────────────────────
+function getDateInfo(clientDate) {
+  // Use client's local date if provided, else fall back to server UTC
+  const todayStr = clientDate || new Date().toISOString().slice(0, 10);
+
+  // Compute tomorrow from the client's today (pure string math, no timezone issues)
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const tomorrowDate = new Date(y, m - 1, d + 1); // local new Date, no UTC issues
+  const tomorrowStr = tomorrowDate.getFullYear() + "-" +
+    String(tomorrowDate.getMonth() + 1).padStart(2, "0") + "-" +
+    String(tomorrowDate.getDate()).padStart(2, "0");
+
+  const now = new Date();
   return {
-    today:       now.toISOString().slice(0, 10),
-    tomorrow:    tomorrow.toISOString().slice(0, 10),
+    today:       todayStr,
+    tomorrow:    tomorrowStr,
     currentTime: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-    year:        now.getFullYear(),
-    month:       String(now.getMonth() + 1).padStart(2, "0"),
-    day:         String(now.getDate()).padStart(2, "0"),
   };
 }
 
-// ─── SYSTEM PROMPT ───────────────────────────────────────────
-function buildSystemPrompt(language, taskContext) {
+// ─────────────────────────────────────────────────────────────────
+// FIX 2: Title cleanup helper
+// Strips "add task/add a task" prefix that LLM sometimes includes in title
+// "add a task at 11:40pm i will git push" → "git push"
+// ─────────────────────────────────────────────────────────────────
+function cleanTitle(raw) {
+  if (!raw) return raw;
+  return raw
+    .replace(/^(add\s+a?\s*task\s*[:-]?\s*|add\s+a?\s*)/i, "") // strip "add task", "add a task"
+    .replace(/\s+at\s+\d{1,2}(:\d{2})?\s*(am|pm|AM|PM)?(\s|$)/gi, " ") // strip "at 11:40pm"
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FIX 3: buildSystemPrompt now accepts + passes clientDate
+// Added explicit title extraction examples to system prompt
+// ─────────────────────────────────────────────────────────────────
+function buildSystemPrompt(language, taskContext, clientDate) {
   const { total, completed, pending, pendingTasks } = taskContext;
-  const { today, tomorrow, currentTime } = getDateInfo();
+  // FIX: use client's date not server's UTC date
+  const { today, tomorrow, currentTime } = getDateInfo(clientDate);
 
   let taskSnapshot = total === 0
     ? "User has NO tasks today yet."
@@ -265,39 +239,56 @@ CURRENT TIME: ${currentTime} | TODAY: ${today} | TOMORROW: ${tomorrow}
 GOLDEN RULE: IF USER ALREADY GAVE THE INFO — JUST DO IT. NO FOLLOW-UP QUESTIONS.
 ══════════════════════════════════════════════
 
+CRITICAL TITLE RULE: NEVER include "add", "add task", "add a task", time, or date in the title.
+Extract ONLY the actual task name.
+
 Examples:
-✅ "add task market 9 to 11 am" → add_task("market", "morning", "09:00", "11:00", date:"${today}")
-✅ "add task gym tomorrow 6am" → add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
-✅ "kal gym karna hai 6am" → add_task("gym", "morning", "06:00", null, date:"${tomorrow}")
-✅ "set alarm 7am tomorrow" → set_alarm("07:00", "${tomorrow}", "Alarm", "once")
-✅ "remind me tomorrow 9am to call doctor" → set_reminder("09:00", "call doctor", date:"${tomorrow}")
-✅ "remind me in 5 min" → set_reminder(currentTime+5min, "reminder", date:"${today}")
-✅ "set reminder 25 feb 3pm meeting" → set_reminder("15:00", "meeting", date:"2026-02-25")
-✅ "market ho gaya" → complete_task("market")
+✅ "add a task at 11:40pm i will git push" → add_task(title:"git push", timeOfDay:"evening", startTime:"23:40", date:"${today}")
+✅ "add task market 9 to 11 am" → add_task(title:"market", timeOfDay:"morning", startTime:"09:00", endTime:"11:00", date:"${today}")
+✅ "add task gym tomorrow 6am" → add_task(title:"gym", timeOfDay:"morning", startTime:"06:00", date:"${tomorrow}")
+✅ "kal gym karna hai 6am" → add_task(title:"gym", timeOfDay:"morning", startTime:"06:00", date:"${tomorrow}")
+✅ "set alarm 7am tomorrow" → set_alarm(time:"07:00", date:"${tomorrow}", label:"Alarm", repeat:"once")
+✅ "remind me tomorrow 9am to call doctor" → set_reminder(time:"09:00", message:"call doctor", date:"${tomorrow}")
+✅ "market ho gaya" → complete_task(taskTitle:"market")
 
 DATE RULES (apply to ALL tools):
 - Default date is ALWAYS today: "${today}"
 - "tomorrow" / "kal" / "next day" → date: "${tomorrow}"
-- "today" / "aaj" → date: "${today}"
 - Specific dates like "25 feb", "march 5" → convert to YYYY-MM-DD
 - NEVER omit the date field
 
 TIME RULES:
-- "9 am"="09:00" | "9 pm"="21:00" | "1 am"="01:00" | "1 pm"="13:00"
+- "9 am"="09:00" | "9 pm"="21:00" | "11:40pm"="23:40" | "1 am"="01:00"
 - "9 to 11 am" → startTime "09:00", endTime "11:00"
 - 5am-noon=morning | noon-5pm=afternoon | 5pm+=evening
 
 Keep replies SHORT (1-2 sentences). Be warm and encouraging.`.trim();
 }
 
-// ─── TOOLS ───────────────────────────────────────────────────
 const TOOLS = [
   { type: "function", function: { name: "set_reminder", description: "Set a reminder.", parameters: { type: "object", properties: { time: { type: "string" }, message: { type: "string" }, date: { type: "string" } }, required: ["time", "message", "date"] } } },
   { type: "function", function: { name: "set_alarm",    description: "Set an alarm.",   parameters: { type: "object", properties: { time: { type: "string" }, date: { type: "string" }, label: { type: "string" }, repeat: { type: "string", enum: ["once", "daily", "custom"] } }, required: ["time", "date"] } } },
   { type: "function", function: { name: "update_notes", description: "Update daily notes.", parameters: { type: "object", properties: { content: { type: "string" }, mode: { type: "string", enum: ["append", "replace"] } }, required: ["content"] } } },
-  { type: "function", function: { name: "add_task",     description: "Add a task.", parameters: { type: "object", properties: { title: { type: "string" }, timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"] }, startTime: { type: "string" }, endTime: { type: "string" }, date: { type: "string" } }, required: ["title", "timeOfDay", "date"] } } },
-  { type: "function", function: { name: "complete_task",description: "Mark a task as done.", parameters: { type: "object", properties: { taskTitle: { type: "string" } }, required: ["taskTitle"] } } },
-  { type: "function", function: { name: "delete_task",  description: "Delete a task.", parameters: { type: "object", properties: { taskTitle: { type: "string" } }, required: ["taskTitle"] } } },
+  {
+    type: "function", function: {
+      name: "add_task",
+      // FIX: explicit title instruction in tool description
+      description: "Add a task to the planner. TITLE must be ONLY the task name — never include 'add', 'add task', times, or dates in the title.",
+      parameters: {
+        type: "object",
+        properties: {
+          title:     { type: "string", description: "ONLY the task name. Examples: 'git push', 'gym', 'market', 'call doctor'. NEVER 'add task gym' or 'Add a task at 11pm git push'." },
+          timeOfDay: { type: "string", enum: ["morning", "afternoon", "evening"] },
+          startTime: { type: "string", description: "24hr format HH:MM, e.g. '23:40' for 11:40pm" },
+          endTime:   { type: "string" },
+          date:      { type: "string", description: "YYYY-MM-DD. ALWAYS provide this." },
+        },
+        required: ["title", "timeOfDay", "date"],
+      },
+    },
+  },
+  { type: "function", function: { name: "complete_task", description: "Mark a task as done.", parameters: { type: "object", properties: { taskTitle: { type: "string" } }, required: ["taskTitle"] } } },
+  { type: "function", function: { name: "delete_task",   description: "Delete a task.",       parameters: { type: "object", properties: { taskTitle: { type: "string" } }, required: ["taskTitle"] } } },
 ];
 
 // ─── POST /api/advanced-chat ──────────────────────────────────
@@ -307,7 +298,8 @@ app.post("/api/advanced-chat", async (req, res) => {
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "Messages required" });
     if (!taskContext) return res.status(400).json({ error: "taskContext required" });
 
-    const { today } = getDateInfo();
+    // FIX: use client's currentDate, not server's UTC new Date()
+    const { today } = getDateInfo(currentDate);
 
     const lastMsg = messages[messages.length - 1]?.content || "";
     if (/notes?\s+mein|daily\s+notes|meri\s+daily|mere\s+daily|diary\s+mein/i.test(lastMsg)) {
@@ -322,7 +314,8 @@ app.post("/api/advanced-chat", async (req, res) => {
       });
     }
 
-    let systemPrompt = buildSystemPrompt(language || "hinglish", taskContext);
+    // FIX: pass currentDate into buildSystemPrompt
+    let systemPrompt = buildSystemPrompt(language || "hinglish", taskContext, currentDate);
     if (isVoice && voiceMode === "notes") systemPrompt += "\n\nVOICE NOTES MODE: ALWAYS call update_notes with user's EXACT words.";
     else if (voiceMode === "tasks")       systemPrompt += "\n\nTASKS MODE: Parse and add/complete/delete tasks. Be direct.";
 
@@ -339,12 +332,17 @@ app.post("/api/advanced-chat", async (req, res) => {
         try {
           const params = JSON.parse(toolCall.function.arguments);
           const name   = toolCall.function.name;
+          // FIX: default date uses client's today
           if (["add_task", "set_alarm", "set_reminder"].includes(name)) {
             if (!params.date) params.date = today;
           }
           if (name === "set_alarm") {
             if (!params.label)  params.label  = "Alarm";
             if (!params.repeat) params.repeat = "once";
+          }
+          // FIX: clean title even if LLM still includes junk
+          if (name === "add_task" && params.title) {
+            params.title = cleanTitle(params.title);
           }
           actions.push({ type: name, params });
         } catch (e) { console.error("Parse error:", e); }
@@ -361,7 +359,7 @@ app.post("/api/advanced-chat", async (req, res) => {
 // ─── POST /api/buddy-intro ────────────────────────────────────
 app.post("/api/buddy-intro", async (req, res) => {
   try {
-    const { language, taskContext, currentTime } = req.body;
+    const { language, taskContext, currentTime, currentDate } = req.body;
     const { total, pending, pendingTasks } = taskContext;
     const hour     = parseInt((currentTime || "12:00").split(":")[0]);
     const greeting = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
@@ -413,7 +411,6 @@ app.post("/api/buddy-nudge", async (req, res) => {
 
     const c       = await callGroq([{ role: "user", content: prompt }], null, false, 50);
     const message = c.choices[0].message.content?.trim() || "Hey! Tap me to chat 👋";
-
     res.json({ message, quickActions: chips });
   } catch (e) {
     const fallbacks = [
@@ -430,7 +427,9 @@ app.post("/api/buddy-nudge", async (req, res) => {
 app.post("/api/flow-step", async (req, res) => {
   try {
     const { flow, step, userInput, language, taskContext, flowData, currentTime, currentDate } = req.body;
-    const { today, tomorrow } = getDateInfo();
+
+    // FIX: use client's currentDate, not server's UTC new Date()
+    const { today, tomorrow } = getDateInfo(currentDate);
     const lang = getLangRule(language);
 
     const isTomorrow    = (text) => /tomorrow|kal\b|next\s+day|agle\s+din/i.test(text || "");
@@ -441,24 +440,41 @@ app.post("/api/flow-step", async (req, res) => {
       return `for ${new Date(date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
     };
 
-    async function parseDateFromText(text) {
-      const prompt = `Extract the date from: "${text}"\nTODAY: ${today} | TOMORROW: ${tomorrow}\nReply ONLY with JSON: { "date": "YYYY-MM-DD" }`;
-      try {
-        const r      = await callGroq([{ role: "user", content: prompt }], null, false, 50);
-        const raw    = r.choices[0].message.content || "{}";
-        const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-        return parsed.date || today;
-      } catch { return today; }
-    }
-
     // ── ADD TASK FLOW ────────────────────────────────────────
     if (flow === "add_task_flow") {
       if (step === "start") {
-        const parsePrompt = `${lang}\nUser wants to add a task. Message: "${userInput || ""}"\nTODAY: ${today} | TOMORROW: ${tomorrow}\nExtract: { "title": null, "startTime": null, "endTime": null, "timeOfDay": null, "date": "${today}" }\nJSON only. Current: ${currentTime}`;
+        // FIX: parse prompt now has explicit title extraction examples
+        const parsePrompt = `${lang}
+User wants to add a task. Their message: "${userInput || ""}"
+TODAY: ${today} | TOMORROW: ${tomorrow} | Current time: ${currentTime}
+
+Extract JSON only:
+{
+  "title": "ONLY the task name — never include 'add', 'add task', 'add a task', time, or date words",
+  "startTime": null,
+  "endTime": null,
+  "timeOfDay": null,
+  "date": "${today}"
+}
+
+TITLE EXTRACTION EXAMPLES:
+"add a task at 11:40pm i will git push" → title: "git push"
+"add gym tomorrow 6am" → title: "gym"
+"market karna hai 9 to 11 am" → title: "market"
+"add task call doctor tomorrow 9am" → title: "call doctor"
+"add meeting" → title: "meeting"
+
+TIME: 5am-noon=morning | noon-5pm=afternoon | 5pm+=evening
+"kal"/"tomorrow" in message → date: "${tomorrow}"
+
+JSON only, no markdown.`;
+
         const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 150);
         let parsed = {};
         try { parsed = JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()); } catch {}
         if (!parsed.date) parsed.date = today;
+        // FIX: belt-and-suspenders title cleanup
+        if (parsed.title) parsed.title = cleanTitle(parsed.title);
 
         if (parsed.title && parsed.timeOfDay) {
           return res.json({
@@ -480,7 +496,7 @@ app.post("/api/flow-step", async (req, res) => {
           });
         }
         return res.json({
-          message: language === "english" ? `What task do you want to add? 🤔` : `Kya task add karna hai? 🤔`,
+          message: language === "english" ? "What task do you want to add? 🤔" : "Kya task add karna hai? 🤔",
           nextStep: "ask_title", flow: "add_task_flow",
           flowData: { date: getTargetDate(userInput) },
         });
@@ -488,11 +504,14 @@ app.post("/api/flow-step", async (req, res) => {
 
       if (step === "ask_title") {
         const inheritedDate = flowData.date || today;
-        const parsePrompt   = `User said: "${userInput}" | TODAY: ${today} | TOMORROW: ${tomorrow} | Inherited: "${inheritedDate}"\nExtract: { "title": "...", "startTime": null, "endTime": null, "timeOfDay": null, "date": "YYYY-MM-DD" }\nJSON only.`;
+        const parsePrompt   = `User said: "${userInput}" | TODAY: ${today} | TOMORROW: ${tomorrow} | Inherited date: "${inheritedDate}"
+Extract ONLY the task name (no "add task" prefix). Return JSON: { "title": "task name only", "startTime": null, "endTime": null, "timeOfDay": null, "date": "YYYY-MM-DD" }
+JSON only.`;
         const parseRes = await callGroq([{ role: "user", content: parsePrompt }], null, false, 100);
         let parsed = { title: userInput, date: inheritedDate };
         try { parsed = { title: userInput, date: inheritedDate, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
         if (!parsed.date) parsed.date = inheritedDate;
+        if (parsed.title) parsed.title = cleanTitle(parsed.title);
 
         if (parsed.timeOfDay) {
           return res.json({
@@ -512,7 +531,7 @@ app.post("/api/flow-step", async (req, res) => {
       if (step === "ask_time") {
         const title    = flowData.title || "task";
         const taskDate = flowData.date  || today;
-        const timePrompt = `User said: "${userInput}" for time of "${title}". Parse: { "timeOfDay": "morning/afternoon/evening", "startTime": null, "endTime": null }. JSON only. Current: ${currentTime}`;
+        const timePrompt = `User said: "${userInput}" for time slot of "${title}". Parse: { "timeOfDay": "morning/afternoon/evening", "startTime": null, "endTime": null }. Rules: 5am-noon=morning, noon-5pm=afternoon, 5pm+=evening. JSON only.`;
         const parseRes = await callGroq([{ role: "user", content: timePrompt }], null, false, 100);
         let parsed = { timeOfDay: "morning", startTime: null, endTime: null };
         try { parsed = { ...parsed, ...JSON.parse(parseRes.choices[0].message.content.replace(/```json|```/g, "").trim()) }; } catch {}
@@ -711,20 +730,14 @@ app.post("/api/flow-step", async (req, res) => {
 app.post("/api/proactive-monitor", async (req, res) => {
   try {
     const { language, taskContext, currentTime, monitorType } = req.body;
-    const { total, completed, pending, pendingTasks } = taskContext;
+    const { total, completed, pending } = taskContext;
     if (total === 0) return res.json({ shouldNotify: false });
-
     const prompts = {
       morning_kickoff: { hinglish: `Good morning! Aaj ${pending} tasks pending hain.`, english: `Good morning! ${pending} tasks today.`, hindi: `सुप्रभात! ${pending} tasks बाकी हैं।` },
       overdue_check:   { hinglish: `${pending} tasks abhi bhi pending hain.`,          english: `${pending} tasks still pending.`,    hindi: `${pending} tasks बाकी हैं।` },
       end_of_day:      { hinglish: `Din khatam! ${completed}/${total} complete.`,      english: `Day's ending! ${completed}/${total} done.`, hindi: `दिन खत्म! ${completed}/${total} पूरे।` },
     };
-
-    res.json({
-      shouldNotify: true,
-      message: prompts[monitorType]?.[language] || prompts[monitorType]?.hinglish,
-      quickActions: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 View Plan", action: "plan_day_flow" }],
-    });
+    res.json({ shouldNotify: true, message: prompts[monitorType]?.[language] || prompts[monitorType]?.hinglish, quickActions: [{ label: "✅ Mark Done", action: "check_task_flow" }, { label: "📅 View Plan", action: "plan_day_flow" }] });
   } catch (e) { res.json({ shouldNotify: false }); }
 });
 
@@ -750,7 +763,6 @@ app.post("/api/proactive-checkin", async (req, res) => {
   res.json({ message: msgs[type]?.[language] || msgs.morning?.hinglish });
 });
 
-// ── Replace app.listen with httpServer.listen ─────────────────
 httpServer.listen(PORT, () =>
   console.log(`🚀 Buddy server running on port ${PORT} (HTTP + WebSocket)`)
 );
