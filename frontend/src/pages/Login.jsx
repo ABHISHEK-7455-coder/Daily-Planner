@@ -1,22 +1,23 @@
+// Login.jsx — Firebase version (replaces Supabase version)
+// Changes: supabase.auth → firebaseAuth  (same function signatures you had before)
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-// import { supabase } from "./supabase";
-// import { useAuth } from "../context/AuthContext";
 import "./Login.css";
-import { supabase } from "../Supabase";
+import { firebaseAuth } from "../Firebase";
 import { useAuth } from "../Context/Authcontext";
 
 export default function Login() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [mode, setMode]                 = useState("login");
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
+  const [name, setName]                 = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState("");
+  const [success, setSuccess]           = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // If already logged in, redirect
@@ -32,26 +33,23 @@ export default function Login() {
 
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await firebaseAuth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate("/");
 
       } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await firebaseAuth.signUp({
           email,
           password,
-          options: {
-            data: { full_name: name },
-          },
+          options: { data: { full_name: name } },
         });
         if (error) throw error;
-        setSuccess("Account created! Check your email to verify, then log in.");
-        setMode("login");
+        // Firebase auto-signs in on signup — redirect immediately
+        setSuccess("Account created! Taking you in…");
+        setTimeout(() => navigate("/"), 800);
 
       } else if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
+        const { error } = await firebaseAuth.resetPasswordForEmail(email);
         if (error) throw error;
         setSuccess("Reset link sent! Check your inbox.");
       }
@@ -64,22 +62,19 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setError("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
-    });
+    const { error } = await firebaseAuth.signInWithOAuth();
     if (error) setError(error.message);
+    // onAuthStateChanged in AuthContext handles the redirect automatically
   };
 
   const titles = {
-    login:  { heading: "Welcome back", sub: "Your cozy planner is waiting ☕" },
-    signup: { heading: "Start fresh", sub: "Create your cozy planning space 🌱" },
-    forgot: { heading: "Reset password", sub: "We'll send a magic link to your inbox ✉️" },
+    login:  { heading: "Welcome back",  sub: "Your cozy planner is waiting ☕"         },
+    signup: { heading: "Start fresh",   sub: "Create your cozy planning space 🌱"      },
+    forgot: { heading: "Reset password",sub: "We'll send a magic link to your inbox ✉️" },
   };
 
   return (
     <div className="login-page">
-      {/* Decorative blobs */}
       <div className="login-blob login-blob-1" />
       <div className="login-blob login-blob-2" />
       <div className="login-blob login-blob-3" />
@@ -236,7 +231,6 @@ export default function Login() {
           </button>
         )}
 
-        {/* Footer illustration text */}
         <p className="login-tagline">Plan calmly. Live fully. 🌿</p>
       </div>
     </div>

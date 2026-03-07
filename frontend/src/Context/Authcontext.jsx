@@ -1,32 +1,47 @@
+// Context/Authcontext.jsx — Firebase version (replaces Supabase version)
+// Drop-in replacement: same useAuth() API your app already uses
+
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../Supabase";
-// import { supabase } from "./Supabase";
+import { auth } from "../Firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { firebaseAuth } from "../Firebase";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    // Firebase onAuthStateChanged is the equivalent of Supabase onAuthStateChange
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Shape the user object to match what your app already reads:
+        //   user.email
+        //   user.user_metadata.full_name
+        //   user.user_metadata.avatar_url
+        //   user.id   (was Supabase UUID, now Firebase UID)
+        setUser({
+          id:    firebaseUser.uid,
+          email: firebaseUser.email,
+          user_metadata: {
+            full_name:  firebaseUser.displayName || "",
+            avatar_url: firebaseUser.photoURL    || "",
+          },
+          // Keep the raw Firebase user accessible if needed
+          _firebase: firebaseUser,
+        });
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
 
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await firebaseAuth.signOut();
   };
 
   return (

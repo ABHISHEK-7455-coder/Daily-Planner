@@ -1,35 +1,34 @@
-// Today.jsx — AUTH CHANGES ONLY
-// Based exactly on the working Today_fixed.jsx (doc 9)
-// Changes marked with ── AUTH CHANGE ──
-// Everything else is byte-for-byte identical
+// Today.jsx — Firebase Auth + MongoDB Data version
+// Key changes vs Supabase version:
+//   - useAuth() now comes from Firebase AuthContext (same API)
+//   - All localStorage task reads/writes → MongoDB via mongoApi.js
+//   - localStorage still used for UI state (carry popup shown, first-task-reminder, mood)
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
-import AddTask from "../components/AddTask";
-import TaskSection from "../components/TaskSection";
-import ProgressBar from "../components/ProgressBar";
-import ReflectionModal from "../components/ReflectionModal";
-import PendingCarryOverModal from "../components/PendingCarryOverModal";
-import WeeklySummaryModal from "../components/WeeklySummaryModal";
-import DailyNotes from "../components/DailyNotes";
-import PushNotifications from "../components/PushNotifications";
-import DayCalendar from "../components/DayCalendar";
-import FirstTaskReminderOverlay from "../components/FirstTaskReminderOverlay";
-import AlarmPlanner from "../components/AlarmPlanner";
-import AdvancedBuddy from "../components/Chatbuddy";
+import AddTask                    from "../components/AddTask";
+import TaskSection                from "../components/TaskSection";
+import ProgressBar                from "../components/ProgressBar";
+import ReflectionModal            from "../components/ReflectionModal";
+import PendingCarryOverModal      from "../components/PendingCarryOverModal";
+import WeeklySummaryModal         from "../components/WeeklySummaryModal";
+import DailyNotes                 from "../components/DailyNotes";
+import PushNotifications          from "../components/PushNotifications";
+import DayCalendar                from "../components/DayCalendar";
+import FirstTaskReminderOverlay   from "../components/FirstTaskReminderOverlay";
+import AlarmPlanner               from "../components/AlarmPlanner";
+import AdvancedBuddy              from "../components/Chatbuddy";
 import { TabSyncProvider, useTabSession } from "../components/Usetabsession";
 import { useWebSocketSync, WsStatusBadge } from "../components/Usewebsocketsync";
-import { useAuth } from "../Context/Authcontext"; // ── AUTH CHANGE: import useAuth
+import { useAuth }                from "../Context/Authcontext";
+import { loadDay, saveDay }       from "../services/Mongoapi";
 import "./Today.css";
 import Header from "../components/Header";
 
 const formatKey = (date) => {
   const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 
 const addDays = (date, days) => {
@@ -38,24 +37,17 @@ const addDays = (date, days) => {
   return d;
 };
 
-// ── AUTH CHANGE: carryPopupKey now includes userId so users don't share popup state
 const carryPopupKey = (date, userId) => `carry-popup-shown-${userId}-${formatKey(date)}`;
 
-// ── AUTH CHANGE: TodayInner receives userId prop
+// ─────────────────────────────────────────────────────────────
 function TodayInner({ userId }) {
-  const { date } = useParams();
-  const navigate = useNavigate();
-
+  const { date }     = useParams();
+  const navigate     = useNavigate();
   const { tabId, broadcastDateChange, broadcastTaskChange, onSharedDataChanged } = useTabSession();
 
-  const parsedDate = date ? new Date(date) : new Date();
+  const parsedDate   = date ? new Date(date) : new Date();
   const [currentDate, setCurrentDate] = useState(parsedDate);
   const dayKey = formatKey(currentDate);
-
-  // ── AUTH CHANGE: tasks stored under user-scoped key
-  // "days-data" → "days-data-{userId}"
-  // User A and User B on same browser NEVER share task data
-  const tasksStorageKey = `days-data-${userId}`;
 
   const [tasks,          setTasks]          = useState([]);
   const [reflection,     setReflection]     = useState(null);
@@ -73,53 +65,63 @@ function TodayInner({ userId }) {
   const dailyNotesRef   = useRef(null);
   const alarmPlannerRef = useRef(null);
   const prevLoadRef     = useRef("calm");
+  const saveTimerRef    = useRef(null);
 
-  const reReadDayTasks = useCallback((changeType, payload) => {
+  // ── Load day data from MongoDB ─────────────────────────────
+  const loadDayData = useCallback(async (key) => {
+    setIsLoaded(false);
+    const dayData = await loadDay(key);
+    setTasks(dayData?.tasks || []);
+    setReflection(dayData?.reflection || null);
+    setIsLoaded(true);
+  }, []);
+
+  // ── Debounced save to MongoDB ──────────────────────────────
+  const scheduleSave = useCallback((newTasks, newReflection) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveDay(dayKey, { tasks: newTasks, reflection: newReflection });
+    }, 800);
+  }, [dayKey]);
+
+  // ── Reload when another tab broadcasts a change ───────────
+  const reReadDayTasks = useCallback(async (changeType, payload) => {
     const affectedDate = payload?.date || dayKey;
     if (affectedDate !== dayKey) return;
-    // ── AUTH CHANGE: read from user-scoped key
-    const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-    const dayData = allDays[dayKey];
+    const dayData = await loadDay(dayKey);
     if (dayData?.tasks) {
       setTasks(dayData.tasks);
-      console.log(`[${tabId}] 🔄 Re-read from localStorage (${changeType})`);
+      console.log(`[${tabId}] 🔄 Re-read from MongoDB (${changeType})`);
     }
-  }, [dayKey, tabId, tasksStorageKey]);
+  }, [dayKey, tabId]);
 
   const { wsStatus, sendWsEvent } = useWebSocketSync({
     tabId,
     currentDate: dayKey,
     onSyncEvent: ({ changeType, payload, fromTabId }) => {
-      if (fromTabId !== tabId) {
-        console.log(`[${tabId}] 📥 WS sync from ${fromTabId}: ${changeType}`);
-        reReadDayTasks(changeType, payload);
-      }
+      if (fromTabId !== tabId) reReadDayTasks(changeType, payload);
     },
   });
 
   useEffect(() => {
     const unsub = onSharedDataChanged(({ changeType, payload, tabId: fromTabId }) => {
-      if (fromTabId !== tabId) {
-        reReadDayTasks(changeType, payload);
-      }
+      if (fromTabId !== tabId) reReadDayTasks(changeType, payload);
     });
     return unsub;
   }, [onSharedDataChanged, reReadDayTasks, tabId]);
 
+  // ── Save whenever tasks/reflection change ─────────────────
   const lastBroadcastRef = useRef(null);
   useEffect(() => {
     if (!isLoaded) return;
-    // ── AUTH CHANGE: save to user-scoped key
-    const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-    allDays[dayKey] = { date: dayKey, tasks, reflection };
-    localStorage.setItem(tasksStorageKey, JSON.stringify(allDays));
+    scheduleSave(tasks, reflection);
     if (lastBroadcastRef.current) {
       const { changeType, payload } = lastBroadcastRef.current;
       lastBroadcastRef.current = null;
       broadcastTaskChange(changeType, payload);
       sendWsEvent(changeType, payload);
     }
-  }, [tasks, reflection, dayKey, isLoaded, tasksStorageKey]);
+  }, [tasks, reflection, isLoaded]);
 
   const getFilteredTasks = (timeOfDay) =>
     tasks.filter((t) => {
@@ -129,12 +131,12 @@ function TodayInner({ userId }) {
       return true;
     });
 
+  // ── First-task reminder ────────────────────────────────────
   useEffect(() => {
     if (!tasks.length) return;
-    // ── AUTH CHANGE: reminder-shown key includes userId
     const shownKey = `first-task-reminder-shown-${userId}-${dayKey}`;
     if (localStorage.getItem(shownKey)) return;
-    const timedTasks = tasks.filter(t => t.startTime).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const timedTasks = tasks.filter(t => t.startTime).sort((a,b) => a.startTime.localeCompare(b.startTime));
     if (!timedTasks.length) return;
     const firstTask = timedTasks[0];
     const [h, m] = firstTask.startTime.split(":");
@@ -148,6 +150,7 @@ function TodayInner({ userId }) {
     }
   }, [tasks, currentDate, dayKey, userId]);
 
+  // ── Cognitive load toast ───────────────────────────────────
   useEffect(() => {
     const newState = calculateCognitiveLoad(tasks);
     const prevState = prevLoadRef.current;
@@ -161,94 +164,68 @@ function TodayInner({ userId }) {
     setCognitiveState(newState);
   }, [tasks]);
 
+  // ── Load on date change ────────────────────────────────────
   useEffect(() => {
     if (date) setCurrentDate(new Date(date));
   }, [date]);
 
   useEffect(() => {
-    setIsLoaded(false);
-    // ── AUTH CHANGE: load from user-scoped key
-    const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-    const dayData = allDays[dayKey];
-    setTasks(dayData?.tasks || []);
-    setReflection(dayData?.reflection || null);
-    setIsLoaded(true);
-  }, [dayKey, tasksStorageKey]);
+    loadDayData(dayKey);
+  }, [dayKey, loadDayData]);
 
+  // ── Carry-over from yesterday (reads from MongoDB) ─────────
   useEffect(() => {
     const todayKey = formatKey(new Date());
     if (dayKey !== todayKey) return;
-    // ── AUTH CHANGE: carry popup key includes userId
     if (localStorage.getItem(carryPopupKey(new Date(), userId))) return;
-    const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-    const yesterdayKey = formatKey(addDays(new Date(), -1));
-    const yesterday = allDays[yesterdayKey];
-    if (!yesterday?.tasks) return;
-    const pending = yesterday.tasks.filter(t => !t.completed);
-    if (!pending.length) return;
-    setYesterdayTasks(pending);
-    setShowCarryModal(true);
-    localStorage.setItem(carryPopupKey(new Date(), userId), "true");
-  }, [dayKey, userId, tasksStorageKey]);
 
+    const yesterdayKey = formatKey(addDays(new Date(), -1));
+    loadDay(yesterdayKey).then((yesterday) => {
+      if (!yesterday?.tasks) return;
+      const pending = yesterday.tasks.filter(t => !t.completed);
+      if (!pending.length) return;
+      setYesterdayTasks(pending);
+      setShowCarryModal(true);
+      localStorage.setItem(carryPopupKey(new Date(), userId), "true");
+    });
+  }, [dayKey, userId]);
+
+  // ── Task mutations ─────────────────────────────────────────
   const addTask = useCallback((title, timeOfDay, startTime = null, endTime = null) => {
     setTasks(prev => [{
-      id: Date.now(),
-      title,
-      completed: false,
-      timeOfDay,
-      startTime,
-      endTime,
-      status: "idle",
-      startedAt: null,
-      completedAt: null,
-      actualTime: null,
+      id: Date.now(), title, completed: false, timeOfDay,
+      startTime, endTime, status: "idle",
+      startedAt: null, completedAt: null, actualTime: null,
     }, ...prev]);
   }, []);
 
-  const handleAddTaskForDate = useCallback((title, timeOfDay, startTime, endTime, targetDate) => {
+  const handleAddTaskForDate = useCallback(async (title, timeOfDay, startTime, endTime, targetDate) => {
     const resolvedDate = targetDate ? formatKey(new Date(targetDate)) : dayKey;
-    console.log(`[${tabId}] ➕ Adding task "${title}" to ${resolvedDate} (dayKey: ${dayKey})`);
 
     if (resolvedDate === dayKey) {
       const newTask = {
-        id: Date.now(),
-        title,
-        completed: false,
+        id: Date.now(), title, completed: false,
         timeOfDay: timeOfDay || "morning",
-        startTime: startTime || null,
-        endTime: endTime || null,
-        status: "idle",
-        startedAt: null,
-        completedAt: null,
-        actualTime: null,
+        startTime: startTime || null, endTime: endTime || null,
+        status: "idle", startedAt: null, completedAt: null, actualTime: null,
       };
       setTasks(prev => [newTask, ...prev]);
       lastBroadcastRef.current = { changeType: "add_task", payload: { date: resolvedDate, title } };
     } else {
-      // ── AUTH CHANGE: write to user-scoped key for different-day tasks
-      const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-      const targetDayData = allDays[resolvedDate] || { date: resolvedDate, tasks: [], reflection: null };
+      // Add to a different day in MongoDB
+      const dayData = await loadDay(resolvedDate);
       const newTask = {
-        id: Date.now() + Math.random(),
-        title,
-        completed: false,
+        id: Date.now() + Math.random(), title, completed: false,
         timeOfDay: timeOfDay || "morning",
-        startTime: startTime || null,
-        endTime: endTime || null,
-        status: "idle",
-        startedAt: null,
-        completedAt: null,
-        actualTime: null,
+        startTime: startTime || null, endTime: endTime || null,
+        status: "idle", startedAt: null, completedAt: null, actualTime: null,
       };
-      targetDayData.tasks = [newTask, ...(targetDayData.tasks || [])];
-      allDays[resolvedDate] = targetDayData;
-      localStorage.setItem(tasksStorageKey, JSON.stringify(allDays));
+      const updatedTasks = [newTask, ...(dayData?.tasks || [])];
+      await saveDay(resolvedDate, { tasks: updatedTasks, reflection: dayData?.reflection || null });
       broadcastTaskChange("add_task", { date: resolvedDate, title });
       sendWsEvent("add_task", { date: resolvedDate, title });
-      console.log(`✅ Task "${title}" saved to ${resolvedDate}`);
     }
-  }, [dayKey, tabId, tasksStorageKey, broadcastTaskChange, sendWsEvent]);
+  }, [dayKey, broadcastTaskChange, sendWsEvent]);
 
   const startTask = (id) =>
     setTasks(prev => prev.map(t =>
@@ -281,22 +258,19 @@ function TodayInner({ userId }) {
     return [...prev.filter(t => t.id !== id), { ...task, timeOfDay: newTimeOfDay }];
   });
 
-  const snoozeTask = (id) => {
-    setTasks(prev => {
-      const task = prev.find(t => t.id === id);
-      if (!task) return prev;
-      // ── AUTH CHANGE: snooze reads/writes user-scoped key
-      const allDays = JSON.parse(localStorage.getItem(tasksStorageKey)) || {};
-      const nextDayKey = formatKey(addDays(currentDate, 1));
-      const nextDay = allDays[nextDayKey] || { date: nextDayKey, tasks: [] };
-      nextDay.tasks.push({ ...task, id: Date.now() + Math.random(), completed: false, snoozed: true });
-      allDays[nextDayKey] = nextDay;
-      localStorage.setItem(tasksStorageKey, JSON.stringify(allDays));
-      return prev.filter(t => t.id !== id);
-    });
-  };
+  const snoozeTask = useCallback(async (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const nextDayKey = formatKey(addDays(currentDate, 1));
+    const nextDayData = await loadDay(nextDayKey);
+    const snoozedTask = { ...task, id: Date.now() + Math.random(), completed: false, snoozed: true };
+    const updatedTasks = [snoozedTask, ...(nextDayData?.tasks || [])];
+    await saveDay(nextDayKey, { tasks: updatedTasks, reflection: nextDayData?.reflection || null });
+    setTasks(prev => prev.filter(t => t.id !== id));
+  }, [tasks, currentDate]);
 
   const goToDay = (days) => navigate(`/day/${formatKey(addDays(currentDate, days))}`);
+
   const saveReflection = (data) => { setReflection(data); setShowReflection(false); };
 
   const acceptCarryOver = () => {
@@ -316,35 +290,26 @@ function TodayInner({ userId }) {
       if (task.startTime && task.endTime) load += 1;
       if (task.snoozed) load += 0.5;
     });
-    if (load < 5) return "calm";
+    if (load < 5)  return "calm";
     if (load < 10) return "busy";
     return "overloaded";
   };
 
-  const handleUpdateNotes = (content, mode = "append") => {
+  const handleUpdateNotes = async (content, mode = "append") => {
     if (dailyNotesRef.current?.updateFromVoice) {
       try { dailyNotesRef.current.updateFromVoice(content, mode); return; } catch {}
     }
-    try {
-      // ── AUTH CHANGE: notes stored under user-scoped key
-      const notesKey = `daily-notes-${userId}`;
-      const raw = localStorage.getItem(notesKey);
-      const allNotes = raw ? JSON.parse(raw) : {};
-      if (mode === "append") {
-        const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        allNotes[dayKey] = allNotes[dayKey]
-          ? `${allNotes[dayKey]}\n\n[${ts}] ${content}`
-          : `[${ts}] ${content}`;
-      } else {
-        allNotes[dayKey] = content;
-      }
-      localStorage.setItem(notesKey, JSON.stringify(allNotes));
-      window.dispatchEvent(new Event("notes-updated"));
-    } catch (e) { console.error("❌ Notes fallback failed:", e); }
+    // Fallback: call MongoDB notes API directly
+    const { appendNote, saveNote } = await import("../services/Mongoapi");
+    if (mode === "append") {
+      await appendNote(dayKey, content);
+    } else {
+      await saveNote(dayKey, content);
+    }
+    window.dispatchEvent(new Event("notes-updated"));
   };
 
   const handleAddAlarm = (alarmParams) => {
-    console.log("⏰ Today.jsx: Adding alarm", alarmParams);
     if (alarmPlannerRef.current?.addAlarmFromBuddy) {
       alarmPlannerRef.current.addAlarmFromBuddy({
         hour:   alarmParams.hour,
@@ -411,7 +376,6 @@ function TodayInner({ userId }) {
           )}
         </main>
 
-        {/* ── AUTH CHANGE: pass userId to DailyNotes so it uses "daily-notes-{userId}" key */}
         <DailyNotes ref={dailyNotesRef} currentDate={currentDate} userId={userId} />
 
         {showReflection && <ReflectionModal existing={reflection} onSave={saveReflection} onClose={() => setShowReflection(false)} />}
@@ -420,7 +384,6 @@ function TodayInner({ userId }) {
         {reminderTask   && <FirstTaskReminderOverlay task={reminderTask} onClose={() => setReminderTask(null)} />}
         {loadToast      && <div className="cognitive-toast">{loadToast}</div>}
 
-        {/* ── AUTH CHANGE: pass userId to ChatBuddy */}
         <AdvancedBuddy
           currentDate={dayKey}
           tasks={tasks}
@@ -432,21 +395,17 @@ function TodayInner({ userId }) {
           onAddAlarm={handleAddAlarm}
         />
 
-        {/* ── AUTH CHANGE: pass userId to AlarmPlanner so it uses "alarms-{userId}" key */}
         <AlarmPlanner ref={alarmPlannerRef} userId={userId} />
       </div>
     </>
   );
 }
 
-// ── AUTH CHANGE: outer wrapper reads userId from Supabase, passes to both
-// TabSyncProvider and TodayInner
 export default function Today() {
-  const { user } = useAuth();           // Supabase user from your AuthContext
-  const userId = user?.id || "anon";   // Supabase user.id is a stable UUID
+  const { user }  = useAuth();
+  const userId    = user?.id || "anon";
 
   return (
-    // TabSyncProvider gets userId → scopes BroadcastChannel + sessionStorage keys
     <TabSyncProvider userId={userId}>
       <TodayInner userId={userId} />
     </TabSyncProvider>
