@@ -110,7 +110,7 @@ const wss        = new WebSocketServer({ server: httpServer });
 const clients    = new Map();
 
 app.use(cors({
-  origin: "http://localhost:5173" || process.env.FRONTEND_URL ,
+  origin: "http://localhost:5173" || process.env.FRONTEND_URL,
   methods: ["GET","POST","PUT","DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
@@ -283,23 +283,127 @@ app.post("/api/subscribe", requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════════════
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const FAST_MODELS  = ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"];
-const SMART_MODELS = ["llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct"];
-let fastIdx = 0, smartIdx = 0;
+// ── Multi-model pool with automatic round-robin + fallback ────
+// If one model is rate-limited (429) or decommissioned (400),
+// it is skipped automatically and the next model is tried.
+// Fast models → used for quick nudges, intros, parsing (low latency)
+// Smart models → used for chat, planning, complex responses (higher quality)
+
+const FAST_MODELS = [
+  "llama-3.1-8b-instant",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "gemma2-9b-it",
+  "llama3-8b-8192",
+];
+
+const SMART_MODELS = [
+  "llama-3.3-70b-versatile",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "llama-3.1-70b-versatile",
+  "llama3-70b-8192",
+];
+
+// Track which index we are at for each pool
+let fastIdx  = 0;
+let smartIdx = 0;
+
+// Track models that have recently failed so we skip them
+const failedModels    = new Map(); // model → timestamp of failure
+const FAILURE_COOLDOWN = 60_000;  // 60 seconds before retrying a failed model
+
+function isModelAvailable(model) {
+  if (!failedModels.has(model)) return true;
+  const failedAt = failedModels.get(model);
+  if (Date.now() - failedAt > FAILURE_COOLDOWN) {
+    failedModels.delete(model); // cooldown passed, allow retry
+    return true;
+  }
+  return false;
+}
+
+function markModelFailed(model) {
+  failedModels.set(model, Date.now());
+  console.warn(`⚠️  Model marked unavailable: ${model}`);
+}
+
+// Get next available model from pool, skipping failed ones
+function getNextModel(models, idxRef, isSmart) {
+  const pool = [...models]; // copy so we can iterate safely
+  for (let attempt = 0; attempt < pool.length; attempt++) {
+    const idx   = (isSmart ? smartIdx : fastIdx) % pool.length;
+    const model = pool[idx];
+    if (isSmart) smartIdx++; else fastIdx++;
+    if (isModelAvailable(model)) return model;
+    console.log(`⏭  Skipping unavailable model: ${model}`);
+  }
+  // All models failed — return the first one anyway (best effort)
+  console.error("❌ All models in pool are marked failed! Using first as fallback.");
+  return models[0];
+}
 
 async function callGroq(messages, tools = null, smart = false, maxTokens = 600) {
-  const models = smart ? SMART_MODELS : FAST_MODELS;
-  const model  = models[(smart ? smartIdx++ : fastIdx++) % models.length];
-  const params = { model, messages, temperature: 0.7, max_tokens: maxTokens };
-  if (tools?.length) { params.tools = tools; params.tool_choice = "auto"; }
+  const pool  = smart ? SMART_MODELS : FAST_MODELS;
+  const model = getNextModel(pool, null, smart);
+
+  const params = {
+    model,
+    messages,
+    temperature: 0.7,
+    max_tokens:  maxTokens,
+  };
+  if (tools?.length) {
+    params.tools        = tools;
+    params.tool_choice  = "auto";
+  }
+
+  console.log(`🤖 Using model: ${model} (${smart ? "smart" : "fast"})`);
+
   try {
     return await groq.chat.completions.create(params);
+
   } catch (e) {
-    if (e.status === 429 || (e.status === 400 && JSON.stringify(e.error || "").includes("decommission"))) {
-      params.model = smart ? FAST_MODELS[0] : SMART_MODELS[0];
-      return await groq.chat.completions.create(params);
+    const errStr  = JSON.stringify(e.error || e.message || "");
+    const is429   = e.status === 429;
+    const is400   = e.status === 400;
+    const isDead  = is400 && (errStr.includes("decommission") || errStr.includes("deprecated") || errStr.includes("not found"));
+    const isLimit = is429 || isDead;
+
+    if (isLimit) {
+      // Mark this model as temporarily failed
+      markModelFailed(model);
+      console.warn(`🔄 Model ${model} failed (${e.status}), switching to next model...`);
+
+      // Try every other model in the pool before giving up
+      for (let i = 0; i < pool.length - 1; i++) {
+        const fallback = getNextModel(pool, null, smart);
+        if (fallback === model) continue; // same model, skip
+        console.log(`🔁 Fallback attempt with: ${fallback}`);
+        try {
+          params.model = fallback;
+          const result = await groq.chat.completions.create(params);
+          console.log(`✅ Fallback succeeded with: ${fallback}`);
+          return result;
+        } catch (e2) {
+          const errStr2 = JSON.stringify(e2.error || e2.message || "");
+          if (e2.status === 429 || (e2.status === 400 && errStr2.includes("decommission"))) {
+            markModelFailed(fallback);
+            console.warn(`🔄 Fallback ${fallback} also failed, trying next...`);
+            continue;
+          }
+          throw e2; // non-rate-limit error, bubble up
+        }
+      }
+
+      // If smart models all failed, fall back to fast models (last resort)
+      if (smart) {
+        console.warn("🆘 All smart models failed — falling back to fast model pool");
+        const lastResort = FAST_MODELS.find(m => isModelAvailable(m)) || FAST_MODELS[0];
+        params.model = lastResort;
+        return await groq.chat.completions.create(params);
+      }
     }
-    throw e;
+
+    throw e; // unknown error, bubble up
   }
 }
 
