@@ -262,7 +262,7 @@
 // }
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const WS_URL =  import.meta.env.VITE_WS_URL || "ws://localhost:3001"  ;
+const WS_URL =  import.meta.env.VITE_WS_URL || "ws://localhost:3001" ;
 const DEDUP_TTL = 2000;
 
 export function useWebSocketSync({ tabId, currentDate, onSyncEvent }) {
